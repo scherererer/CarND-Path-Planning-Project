@@ -178,22 +178,22 @@ int main() {
 
   string line;
   while (getline(in_map_, line)) {
-  	istringstream iss(line);
-  	double x;
-  	double y;
-  	float s;
-  	float d_x;
-  	float d_y;
-  	iss >> x;
-  	iss >> y;
-  	iss >> s;
-  	iss >> d_x;
-  	iss >> d_y;
-  	map_waypoints_x.push_back(x);
-  	map_waypoints_y.push_back(y);
-  	map_waypoints_s.push_back(s);
-  	map_waypoints_dx.push_back(d_x);
-  	map_waypoints_dy.push_back(d_y);
+    istringstream iss(line);
+    double x;
+    double y;
+    float s;
+    float d_x;
+    float d_y;
+    iss >> x;
+    iss >> y;
+    iss >> s;
+    iss >> d_x;
+    iss >> d_y;
+    map_waypoints_x.push_back(x);
+    map_waypoints_y.push_back(y);
+    map_waypoints_s.push_back(s);
+    map_waypoints_dx.push_back(d_x);
+    map_waypoints_dy.push_back(d_y);
   }
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -209,45 +209,44 @@ int main() {
 
       if (s != "") {
         auto j = json::parse(s);
-        
+
         string event = j[0].get<string>();
-        
+
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          
-        	// Main car's localization Data
-          	double car_x = j[1]["x"];
-          	double car_y = j[1]["y"];
-          	double car_s = j[1]["s"];
-          	double car_d = j[1]["d"];
-          	double car_yaw = j[1]["yaw"];
-          	double car_speed = j[1]["speed"];
 
-          	// Previous path data given to the Planner
-          	auto previous_path_x = j[1]["previous_path_x"];
-          	auto previous_path_y = j[1]["previous_path_y"];
-          	// Previous path's end s and d values 
-          	double end_path_s = j[1]["end_path_s"];
-          	double end_path_d = j[1]["end_path_d"];
+         // Main car's localization Data
+         double car_x = j[1]["x"];
+         double car_y = j[1]["y"];
+         double car_s = j[1]["s"];
+         double car_d = j[1]["d"];
+         double car_yaw = j[1]["yaw"];
+         double car_speed = j[1]["speed"];
 
-          	// Sensor Fusion Data, a list of all other cars on the same side of the road.
-          	auto sensor_fusion = j[1]["sensor_fusion"];
+         // Previous path data given to the Planner
+         auto previous_path_x = j[1]["previous_path_x"];
+         auto previous_path_y = j[1]["previous_path_y"];
+         // Previous path's end s and d values
+         double end_path_s = j[1]["end_path_s"];
+         double end_path_d = j[1]["end_path_d"];
 
-          	json msgJson;
+         // Sensor Fusion Data, a list of all other cars on the same side of the road.
+         auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	vector<double> next_x_vals;
-          	vector<double> next_y_vals;
+         json msgJson;
+
+         vector<double> next_x_vals;
+         vector<double> next_y_vals;
 
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-          	msgJson["next_x"] = next_x_vals;
-          	msgJson["next_y"] = next_y_vals;
+         // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+         msgJson["next_x"] = next_x_vals;
+         msgJson["next_y"] = next_y_vals;
 
-          	auto msg = "42[\"control\","+ msgJson.dump()+"]";
+         auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
-          	//this_thread::sleep_for(chrono::milliseconds(1000));
-          	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-          
+         //this_thread::sleep_for(chrono::milliseconds(1000));
+         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
         // Manual driving
