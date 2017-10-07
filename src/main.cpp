@@ -121,13 +121,13 @@ int main()
 		 {
 			 WorldModel::Target nt;
 
-			 nt.id = t["id"];
-			 nt.x = t["x"];
-			 nt.y = t["y"];
-			 nt.vx = t["vx"];
-			 nt.vy = t["vy"];
-			 nt.s = t["s"];
-			 nt.d = t["d"];
+			 nt.id = t[0];
+			 nt.x = t[1];
+			 nt.y = t[2];
+			 nt.vx = t[3];
+			 nt.vy = t[4];
+			 nt.s = t[5];
+			 nt.d = t[6];
 
 			 worldModel.update (nt);
 		 }
