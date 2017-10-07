@@ -17,16 +17,15 @@ inline double distance(double x1, double y1, double x2, double y2)
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
 
-inline int closestWaypoint(double x, double y, const std::vector<double> &maps_x,
-                           const std::vector<double> &maps_y)
+inline int closestWaypoint(double x, double y, Map const &map)
 {
 	double closestLen = 100000; //large number
 	int closestWaypoint = 0;
 
-	for(int i = 0; i < maps_x.size(); i++)
+	for(int i = 0; i < map.waypoints_x.size(); i++)
 	{
-		double map_x = maps_x[i];
-		double map_y = maps_y[i];
+		double map_x = map.waypoints_x[i];
+		double map_y = map.waypoints_y[i];
 		double dist = distance(x,y,map_x,map_y);
 		if(dist < closestLen)
 		{
@@ -39,13 +38,12 @@ inline int closestWaypoint(double x, double y, const std::vector<double> &maps_x
 	return closestWaypoint;
 }
 
-inline int nextWaypoint(double x, double y, double theta, const std::vector<double> &maps_x,
-                        const std::vector<double> &maps_y)
+inline int nextWaypoint(double x, double y, double theta, Map const &map)
 {
-	int closest = closestWaypoint(x,y,maps_x,maps_y);
+	int closest = closestWaypoint(x, y, map);
 
-	double map_x = maps_x[closest];
-	double map_y = maps_y[closest];
+	double map_x = map.waypoints_x[closest];
+	double map_y = map.waypoints_y[closest];
 
 	double heading = atan2( (map_y-y),(map_x-x) );
 
@@ -59,23 +57,21 @@ inline int nextWaypoint(double x, double y, double theta, const std::vector<doub
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-inline std::vector<double> getFrenet(double x, double y, double theta,
-                                     const std::vector<double> &maps_x,
-                                     const std::vector<double> &maps_y)
+inline std::vector<double> getFrenet(double x, double y, double theta, Map const &map)
 {
-	int next_wp = nextWaypoint(x,y, theta, maps_x,maps_y);
+	int next_wp = nextWaypoint(x, y, theta, map);
 
 	int prev_wp;
 	prev_wp = next_wp-1;
 	if(next_wp == 0)
 	{
-		prev_wp  = maps_x.size()-1;
+		prev_wp  = map.waypoints_x.size()-1;
 	}
 
-	double n_x = maps_x[next_wp]-maps_x[prev_wp];
-	double n_y = maps_y[next_wp]-maps_y[prev_wp];
-	double x_x = x - maps_x[prev_wp];
-	double x_y = y - maps_y[prev_wp];
+	double n_x = map.waypoints_x[next_wp]-map.waypoints_x[prev_wp];
+	double n_y = map.waypoints_y[next_wp]-map.waypoints_y[prev_wp];
+	double x_x = x - map.waypoints_x[prev_wp];
+	double x_y = y - map.waypoints_y[prev_wp];
 
 	// find the projection of x onto n
 	double proj_norm = (x_x*n_x+x_y*n_y)/(n_x*n_x+n_y*n_y);
@@ -86,8 +82,8 @@ inline std::vector<double> getFrenet(double x, double y, double theta,
 
 	//see if d value is positive or negative by comparing it to a center point
 
-	double center_x = 1000-maps_x[prev_wp];
-	double center_y = 2000-maps_y[prev_wp];
+	double center_x = 1000-map.waypoints_x[prev_wp];
+	double center_y = 2000-map.waypoints_y[prev_wp];
 	double centerToPos = distance(center_x,center_y,x_x,x_y);
 	double centerToRef = distance(center_x,center_y,proj_x,proj_y);
 
@@ -100,7 +96,8 @@ inline std::vector<double> getFrenet(double x, double y, double theta,
 	double frenet_s = 0;
 	for(int i = 0; i < prev_wp; i++)
 	{
-		frenet_s += distance(maps_x[i],maps_y[i],maps_x[i+1],maps_y[i+1]);
+		frenet_s += distance(map.waypoints_x[i],map.waypoints_y[i],
+		                     map.waypoints_x[i+1],map.waypoints_y[i+1]);
 	}
 
 	frenet_s += distance(0,0,proj_x,proj_y);
