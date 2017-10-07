@@ -1,7 +1,11 @@
 
 #pragma once
 
+#include "constants.h"
+#include "map.h"
+
 #include <cmath>
+#include <vector>
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
@@ -13,8 +17,8 @@ inline double distance(double x1, double y1, double x2, double y2)
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
 
-inline int closestWaypoint(double x, double y, const vector<double> &maps_x,
-                           const vector<double> &maps_y)
+inline int closestWaypoint(double x, double y, const std::vector<double> &maps_x,
+                           const std::vector<double> &maps_y)
 {
 	double closestLen = 100000; //large number
 	int closestWaypoint = 0;
@@ -35,30 +39,29 @@ inline int closestWaypoint(double x, double y, const vector<double> &maps_x,
 	return closestWaypoint;
 }
 
-inline int nextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
-                        const vector<double> &maps_y)
+inline int nextWaypoint(double x, double y, double theta, const std::vector<double> &maps_x,
+                        const std::vector<double> &maps_y)
 {
-	int closestWaypoint = closestWaypoint(x,y,maps_x,maps_y);
+	int closest = closestWaypoint(x,y,maps_x,maps_y);
 
-	double map_x = maps_x[closestWaypoint];
-	double map_y = maps_y[closestWaypoint];
+	double map_x = maps_x[closest];
+	double map_y = maps_y[closest];
 
 	double heading = atan2( (map_y-y),(map_x-x) );
 
 	double angle = abs(theta-heading);
 
 	if(angle > pi()/4)
-	{
-		closestWaypoint++;
-	}
+		++closest;
 
-	return closestWaypoint;
+	return closest;
 
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-inline vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x,
-                                const vector<double> &maps_y)
+inline std::vector<double> getFrenet(double x, double y, double theta,
+                                     const std::vector<double> &maps_x,
+                                     const std::vector<double> &maps_y)
 {
 	int next_wp = nextWaypoint(x,y, theta, maps_x,maps_y);
 
@@ -107,24 +110,24 @@ inline vector<double> getFrenet(double x, double y, double theta, const vector<d
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-inline vector<double> getXY(double s, double d, const vector<double> &maps_s,
-                            const vector<double> &maps_x, const vector<double> &maps_y)
+inline std::vector<double> getXY(double s, double d, Map const &map)
 {
 	int prev_wp = -1;
 
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
+	while(s > map.waypoints_s[prev_wp+1] && (prev_wp < (int)(map.waypoints_s.size()-1) ))
 	{
 		prev_wp++;
 	}
 
-	int wp2 = (prev_wp+1)%maps_x.size();
+	int wp2 = (prev_wp+1)%map.waypoints_x.size();
 
-	double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+	double heading = atan2((map.waypoints_y[wp2]-map.waypoints_y[prev_wp]),
+	                       (map.waypoints_x[wp2]-map.waypoints_x[prev_wp]));
 	// the x,y,s along the segment
-	double seg_s = (s-maps_s[prev_wp]);
+	double seg_s = (s-map.waypoints_s[prev_wp]);
 
-	double seg_x = maps_x[prev_wp]+seg_s*cos(heading);
-	double seg_y = maps_y[prev_wp]+seg_s*sin(heading);
+	double seg_x = map.waypoints_x[prev_wp]+seg_s*cos(heading);
+	double seg_y = map.waypoints_y[prev_wp]+seg_s*sin(heading);
 
 	double perp_heading = heading-pi()/2;
 
@@ -132,4 +135,9 @@ inline vector<double> getXY(double s, double d, const vector<double> &maps_s,
 	double y = seg_y + d*sin(perp_heading);
 
 	return {x,y};
+}
+
+inline int getLane (double d)
+{
+	return static_cast<int> (d / LANE_WIDTH);
 }

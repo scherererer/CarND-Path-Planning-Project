@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "carState.h"
 #include "maneuver.h"
 #include "worldModel.h"
 
@@ -19,7 +20,7 @@ public:
 	~StateMachine ();
 	explicit StateMachine (WorldModel const &worldModel);
 
-	Maneuver update ();
+	Maneuver update (CarState const &car);
 
 private:
 	State update_stayInLane ();
@@ -34,7 +35,11 @@ private:
 	Maneuver run_beginRightLaneChange ();
 	Maneuver run_rightLaneChange ();
 
+	/// \brief World model
 	WorldModel const &worldModel_;
+	/// \brief Behavioral state of the car
 	State currentState_;
+	/// \brief Pose of the car
+	CarState car_;
 };
 

@@ -1,6 +1,18 @@
 
 #include "stateMachine.h"
+#include "utilities.h"
 
+
+///////////////////////////////////////////////////////////////////////////
+namespace
+{
+
+double constexpr BUFFER_DISTANCE = 20;
+
+}
+
+
+///////////////////////////////////////////////////////////////////////////
 StateMachine::~StateMachine ()
 {
 }
@@ -8,11 +20,14 @@ StateMachine::~StateMachine ()
 StateMachine::StateMachine (WorldModel const &worldModel)
 	: worldModel_ (worldModel)
 	, currentState_ (STAY_IN_LANE)
+	, car_ ()
 {
 }
 
-Maneuver StateMachine::update ()
+Maneuver StateMachine::update (CarState const &car)
 {
+	car_ = car;
+
 	switch (currentState_)
 	{
 	case STAY_IN_LANE:
@@ -74,7 +89,18 @@ StateMachine::State StateMachine::update_rightLaneChange ()
 
 Maneuver StateMachine::run_stayInLane ()
 {
+	int const currentLane = getLane (car_.d);
+	WorldModel::Target const t = worldModel_.nextInLane (currentLane, car_.s);
 	Maneuver m;
+
+    m.targetLaneId_ = currentLane;
+    m.targetLeadingVehicleId_ = t.id;
+    m.targetSpeed_ = SPEED_LIMIT;
+    m.secondsToReachTarget_ = -1;
+
+	if (fabs (t.s - car_.s) < BUFFER_DISTANCE)
+		m.targetSpeed_ = t.s;
+
 	return m;
 }
 
