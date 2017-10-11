@@ -19,7 +19,10 @@ public:
 	~TrajectoryPlanner ();
 	explicit TrajectoryPlanner (WorldModel const &worldModel);
 
-	Trajectory update (CarState const &carState, Maneuver const &desiredManeuver);
+	Trajectory update (std::vector<double> const &previous_path_x,
+	                   std::vector<double> const &previous_path_y,
+	                   double end_path_s, double end_path_d,
+	                   CarState const &carState, Maneuver const &desiredManeuver);
 
 private:
 	/// \brief World model

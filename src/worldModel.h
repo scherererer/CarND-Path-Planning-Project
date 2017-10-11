@@ -3,36 +3,65 @@
 
 #include "map.h"
 
+#include <cmath>
 #include <unordered_map>
 
 class WorldModel
 {
 public:
-	struct Target
+	class Target
 	{
+	public:
 		Target ()
-			: id (-1) // invalid target
-			, x (0.0)
-			, y (0.0)
-			, vx (0.0)
-			, vy (0.0)
-			, s (0.0)
-			, d (0.0)
+			: id_ (-1) // invalid target
+			, x_ (0.0)
+			, y_ (0.0)
+			, vx_ (0.0)
+			, vy_ (0.0)
+			, s_ (0.0)
+			, d_ (0.0)
+			, speed_ (0.0)
 		{
 		}
 
-		int id;
-		double x;
-		double y;
-		double vx;
-		double vy;
-		double s;
-		double d;
+		Target (int id, double x, double y, double vx, double vy,
+		        double s, double d)
+			: id_ (id)
+			, x_ (x)
+			, y_ (y)
+			, vx_ (vx)
+			, vy_ (vy)
+			, s_ (s)
+			, d_ (d)
+			, speed_ (std::sqrt (vx * vx + vy * vy))
+		{
+		}
 
 		bool isValid () const
-			{ return id >= 0; }
+			{ return id_ >= 0; }
 
 		int lane () const;
+
+		int id () const { return id_; }
+		double x () const { return x_; }
+		double y () const { return y_; }
+		double vx () const { return vx_; }
+		double vy () const { return vy_; }
+		double s () const { return s_; }
+		double d () const { return d_; }
+
+		double speed () const { return speed_; }
+
+	private:
+		int id_;
+		double x_;
+		double y_;
+		double vx_;
+		double vy_;
+		double s_;
+		double d_;
+
+		double speed_;   ///< Total speed
 	};
 
 	~WorldModel ();

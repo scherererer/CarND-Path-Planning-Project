@@ -131,10 +131,15 @@ inline std::vector<double> getXY(double s, double d, Map const &map)
 	double x = seg_x + d*cos(perp_heading);
 	double y = seg_y + d*sin(perp_heading);
 
-	return {x,y};
+	return {x,y,heading};
 }
 
 inline int getLane (double d)
 {
 	return static_cast<int> (d / LANE_WIDTH);
+}
+
+inline double laneToD (int lane)
+{
+	return lane * LANE_WIDTH;
 }

@@ -94,12 +94,12 @@ Maneuver StateMachine::run_stayInLane ()
 	Maneuver m;
 
     m.targetLaneId_ = currentLane;
-    m.targetLeadingVehicleId_ = t.id;
+    m.targetLeadingVehicleId_ = t.id();
     m.targetSpeed_ = SPEED_LIMIT;
     m.secondsToReachTarget_ = -1;
 
-	if (fabs (t.s - car_.s) < BUFFER_DISTANCE)
-		m.targetSpeed_ = t.s;
+	if (fabs (t.s() - car_.s) < BUFFER_DISTANCE && t.speed() < m.targetSpeed_)
+		m.targetSpeed_ = t.speed();
 
 	return m;
 }

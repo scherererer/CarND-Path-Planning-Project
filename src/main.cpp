@@ -119,15 +119,7 @@ int main()
 
 		 for (auto const &t : sensor_fusion)
 		 {
-			 WorldModel::Target nt;
-
-			 nt.id = t[0];
-			 nt.x = t[1];
-			 nt.y = t[2];
-			 nt.vx = t[3];
-			 nt.vy = t[4];
-			 nt.s = t[5];
-			 nt.d = t[6];
+			 WorldModel::Target nt (t[0], t[1], t[2], t[3], t[4], t[5], t[6]);
 
 			 worldModel.update (nt);
 		 }
@@ -137,7 +129,8 @@ int main()
          json msgJson;
 
 		 TrajectoryPlanner::Trajectory const trajectory =
-			 trajectoryPlanner.update (car, desiredManeuver);
+			 trajectoryPlanner.update (previous_path_x, previous_path_y,
+			                           end_path_s, end_path_d, car, desiredManeuver);
 
          msgJson["next_x"] = trajectory.x;
          msgJson["next_y"] = trajectory.y;

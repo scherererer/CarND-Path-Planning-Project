@@ -5,7 +5,7 @@
 ///////////////////////////////////////////////////////////////////////////
 int WorldModel::Target::lane () const
 {
-	return getLane (d);
+	return getLane (d_);
 }
 
 
@@ -21,7 +21,7 @@ WorldModel::WorldModel (Map const &map)
 
 void WorldModel::update (Target const &t)
 {
-	targets_[t.id] = t;
+	targets_[t.id ()] = t;
 }
 
 WorldModel::Target WorldModel::nextInLane (int lane, double s) const
@@ -35,7 +35,7 @@ WorldModel::Target WorldModel::nextInLane (int lane, double s) const
 		if (t.lane () != lane)
 			continue;
 
-		if (closest.isValid () && t.s >= s && t.s < closest.s)
+		if (closest.isValid() && t.s() >= s && t.s() < closest.s())
 			closest = t;
 	}
 
