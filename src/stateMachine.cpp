@@ -19,14 +19,22 @@ StateMachine::~StateMachine ()
 
 StateMachine::StateMachine (WorldModel const &worldModel)
 	: worldModel_ (worldModel)
+	, isInitialized_ (false)
 	, currentState_ (STAY_IN_LANE)
 	, car_ ()
+	, targetLane_ (0)
 {
 }
 
 Maneuver StateMachine::update (CarState const &car)
 {
 	car_ = car;
+
+	if (! isInitialized_)
+	{
+		targetLane_ = getLane (car_.d);
+		isInitialized_ = true;
+	}
 
 	switch (currentState_)
 	{
@@ -89,11 +97,10 @@ StateMachine::State StateMachine::update_rightLaneChange ()
 
 Maneuver StateMachine::run_stayInLane ()
 {
-	int const currentLane = getLane (car_.d);
-	WorldModel::Target const t = worldModel_.nextInLane (currentLane, car_.s);
+	WorldModel::Target const t = worldModel_.nextInLane (targetLane_, car_.s);
 	Maneuver m;
 
-    m.targetLaneId_ = currentLane;
+    m.targetLaneId_ = targetLane_;
     m.targetLeadingVehicleId_ = t.id();
     m.targetSpeed_ = SPEED_LIMIT;
     m.secondsToReachTarget_ = -1;

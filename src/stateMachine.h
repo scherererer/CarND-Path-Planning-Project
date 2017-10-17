@@ -37,9 +37,16 @@ private:
 
 	/// \brief World model
 	WorldModel const &worldModel_;
+
+	/// \brief Is this state machine initialized?
+	bool isInitialized_;
+
 	/// \brief Behavioral state of the car
 	State currentState_;
 	/// \brief Pose of the car
 	CarState car_;
+
+	/// \brief Current lane target
+	int targetLane_;
 };
 

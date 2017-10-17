@@ -6,10 +6,27 @@
 #include "Eigen-3.3/Eigen/Dense"
 
 #include <iostream>
+#include <limits>
 
 
 namespace
 {
+
+double constexpr defaultManeuverDistance = 200;
+double constexpr S_MEAN = 0.0;
+double constexpr S_STD_DEV = 100.0;
+
+double constexpr defaultManeuverHorizon = 10;
+double constexpr TIME_MEAN = 0.0;
+double constexpr TIME_STD_DEV = 4.5;
+
+double constexpr D_MEAN = 0.0;
+double constexpr D_STD_DEV = LANE_WIDTH / 6.0;
+
+int constexpr STEP_HORIZON = 100;
+
+unsigned constexpr NUM_TRAJECTORIES = 1000;
+
 
 /// \brief Calculate the Jerk Minimizing Trajectory that connects the initial state
 /// to the final state in time T.
@@ -69,6 +86,11 @@ TrajectoryPlanner::~TrajectoryPlanner ()
 
 TrajectoryPlanner::TrajectoryPlanner (WorldModel const &worldModel)
 	: worldModel_ (worldModel)
+	, randDevice_ ()
+	, randEngine_ (randDevice_ ())
+	, sRand_ (S_MEAN, S_STD_DEV)
+	, dRand_ (D_MEAN, D_STD_DEV)
+	, timeRand_ (TIME_MEAN, TIME_STD_DEV)
 {
 }
 
@@ -77,9 +99,18 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	double end_path_s, double end_path_d,
 	CarState const &carState, Maneuver const &desiredManeuver)
 {
-	int constexpr STEP_HORIZON = 50;
+	std::cout << "-----------------------------------\n"
+	          << "Lane: " << getLane (carState.d) << " -> "
+	          << desiredManeuver.targetLaneId_
+	          << " (" << laneToD (desiredManeuver.targetLaneId_) << ")\n"
+	          << "Speed: " << carState.speed << " -> " << desiredManeuver.targetSpeed_ << "\n"
+	          << "Target Vehicle: " << desiredManeuver.targetLeadingVehicleId_ << "\n"
+	          << "ETA: " << desiredManeuver.secondsToReachTarget_ << "\n"
+	          << std::endl;
+
+	size_t const previous_path_size = std::min (previous_path_x.size (), size_t (5));
+
 	Trajectory t;
-	size_t const previous_path_size = std::min (previous_path_x.size (), size_t (10));
 
 	for (unsigned i = 0; i < previous_path_size; ++i)
 	{
@@ -91,8 +122,9 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	double pos_y = 0;
 	double angle = 0;
 	double end_speed = 0;
+	double end_accel = 0;
 
-	if(previous_path_size == 0)
+	if(previous_path_size < 3)
 	{
 		pos_x = carState.x;
 		pos_y = carState.y;
@@ -111,27 +143,64 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 		double pos_x2 = previous_path_x[previous_path_size-2];
 		double pos_y2 = previous_path_y[previous_path_size-2];
 
-		double const yd = pos_y-pos_y2;
 		double const xd = pos_x-pos_x2;
+		double const yd = pos_y-pos_y2;
 
 		angle = atan2(yd, xd);
 		end_speed = std::sqrt (xd * xd + yd * yd) / TIME_STEP;
-	}
 
-	double const defaultManeuverDistance = 66;
-	double const defaultManeuverHorizon = 3;
+		double pos_x3 = previous_path_x[previous_path_size-3];
+		double pos_y3 = previous_path_y[previous_path_size-3];
+
+		double const xd2 = pos_x2-pos_x3;
+		double const yd2 = pos_y2-pos_y3;
+
+		double end_speed2 = std::sqrt (xd2 * xd2 + yd2 * yd2) / TIME_STEP;
+		end_accel = (end_speed - end_speed2) / TIME_STEP;
+	}
 
 	double const lastTimeHorizon = (STEP_HORIZON - previous_path_x.size ()) * TIME_STEP;
 
-	// I'd rather make the JMT in x-y space than s-d space.
-	std::vector<double> p1 = getXY(carState.s + defaultManeuverDistance,
-								   int (carState.d), worldModel_.map ());
-	std::vector<double> xcoeffs = JMT ({pos_x, end_speed * cos(angle), 0},
-	                                   {p1[0], desiredManeuver.targetSpeed_ * cos(p1[2]), 0},
-	                                   defaultManeuverHorizon);
-	std::vector<double> ycoeffs = JMT ({pos_y, end_speed * sin(angle), 0},
-	                                   {p1[1], desiredManeuver.targetSpeed_ * sin(p1[2]), 0},
-	                                   defaultManeuverHorizon);
+
+	/*std::cout << end_speed * cos(angle) << " " << desiredManeuver.targetSpeed_ * cos(p1[2])
+	          << " " << end_accel * cos(angle)
+	          << " | " << end_speed * sin(angle) << " " << desiredManeuver.targetSpeed_ * sin(p1[2])
+	          << " " << end_accel * sin(angle) << std::endl;*/
+
+	std::vector<Candidate> candidates;
+	unsigned best = 0;
+	double bestScore = std::numeric_limits<double>::max ();
+
+	//do
+	//{
+	for (unsigned i = 0; i < NUM_TRAJECTORIES; ++i)
+	{
+		Candidate const c = generateTrajectory (
+			carState, desiredManeuver, defaultManeuverDistance,
+			(desiredManeuver.secondsToReachTarget_ <= 0)
+			? defaultManeuverHorizon
+			: desiredManeuver.secondsToReachTarget_,
+			pos_x, pos_y, angle, end_speed, end_accel);
+
+		if (! c.isValid)
+			continue;
+
+		if (c.score < bestScore)
+		{
+			best = candidates.size ();
+			bestScore = c.score;
+		}
+
+		candidates.push_back (c);
+	}
+	//} while (candidates.size () == 0);
+
+	assert (candidates.size () > 0);
+	std::cout << "Num Candidates: " << candidates.size ()
+	          << " best score: " << bestScore << std::endl;
+
+	std::vector<double> const &xcoeffs = candidates[best].xc;
+	std::vector<double> const &ycoeffs = candidates[best].yc;
 
 	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
 	{
@@ -143,4 +212,99 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	}
 
 	return t;
+}
+
+TrajectoryPlanner::Candidate TrajectoryPlanner::generateTrajectory (
+	CarState const &carState, Maneuver const &desiredManeuver,
+	double const distance, double const time,
+	double const pos_x, double const pos_y, double const angle,
+	double const end_speed, double const end_accel)
+{
+	double const distanceHorizon = std::max (10.0, distance + sRand_(randEngine_));
+	double const desiredD = laneToD(desiredManeuver.targetLaneId_) + dRand_(randEngine_);
+
+	// Make the JMT in x-y space rather than s-d space to ensure we minimize Jerk in real world
+	// space and not in an artificial space.
+	std::vector<double> p1 = getXY(carState.s + distanceHorizon,
+	                               desiredD, worldModel_.map());
+
+	Candidate c;
+
+	double const timeHorizon = std::max(0.1, time + timeRand_(randEngine_));
+
+	// Try varying speed, accel, and d value
+	c.xc = JMT ({pos_x, end_speed * cos(angle), end_accel * cos(angle)},
+	            {p1[0], desiredManeuver.targetSpeed_ * cos(p1[2]), 0},
+	            timeHorizon);
+	c.yc = JMT ({pos_y, end_speed * sin(angle), end_accel * sin(angle)},
+	            {p1[1], desiredManeuver.targetSpeed_ * sin(p1[2]), 0},
+	            timeHorizon);
+
+	std::vector<double> vxc = {c.xc[1], 2*c.xc[2], 3*c.xc[3], 4*c.xc[4], 5*c.xc[5]};
+	std::vector<double> vyc = {c.yc[1], 2*c.yc[2], 3*c.yc[3], 4*c.yc[4], 5*c.yc[5]};
+
+	std::vector<double> axc = {2*c.xc[2], 6*c.xc[3], 12*c.xc[4], 20*c.xc[5]};
+	std::vector<double> ayc = {2*c.yc[2], 6*c.yc[3], 12*c.yc[4], 20*c.yc[5]};
+
+	std::vector<double> jxc = {6*c.xc[3], 24*c.xc[4], 60*c.xc[5]};
+	std::vector<double> jyc = {6*c.yc[3], 24*c.yc[4], 60*c.yc[5]};
+
+	// Use the square of the values to save some cycles
+	double minv2 = std::numeric_limits<double>::max ();
+	double maxv2 = 0;
+	double mina2 = std::numeric_limits<double>::max ();
+	double maxa2 = 0;
+	double minj2 = std::numeric_limits<double>::max ();
+	double maxj2 = 0;
+
+	for (int i = 1; i < STEP_HORIZON /*- previous_path_size*/; ++i)
+	{
+		double const vx = evalPoly (vxc, i * TIME_STEP);
+		double const vy = evalPoly (vxc, i * TIME_STEP);
+		double const v2 = vx * vx + vy * vy;
+
+		minv2 = std::min (minv2, v2);
+		maxv2 = std::max (maxv2, v2);
+
+		double const ax = evalPoly (axc, i * TIME_STEP);
+		double const ay = evalPoly (axc, i * TIME_STEP);
+		double const a2 = ax * ax + ay * ay;
+
+		mina2 = std::min (mina2, a2);
+		maxa2 = std::max (maxa2, a2);
+
+		double const jx = evalPoly (jxc, i * TIME_STEP);
+		double const jy = evalPoly (jxc, i * TIME_STEP);
+		double const j2 = jx * jx + jy * jy;
+
+		minj2 = std::min (minj2, j2);
+		maxj2 = std::max (maxj2, j2);
+	}
+
+	c.isValid = maxv2 < SPEED_LIMIT_2 && maxa2 < ACCEL_LIMIT_2 && maxj2 < JERK_LIMIT_2;
+
+	// Prioritize being close to the speed limit
+	double constexpr GAIN_SPEED = 1.0; // bound to 22
+	// Prioritize minimizing lateral jerk over longitudinal jerk
+	double constexpr GAIN_MIN_JERK = 1.0; // bound to 10
+	// Prioritize maximal distance to obstacles
+	// Prioritize center of lane
+	double constexpr GAIN_CENTER = 2.0; // bound to maybe 4?
+
+	if (c.isValid)
+		c.score =
+			GAIN_SPEED * (std::sqrt(SPEED_LIMIT_2) - std::sqrt(maxv2)) +
+			GAIN_MIN_JERK * (maxj2) +
+			GAIN_CENTER * fabs(desiredD - laneToD(desiredManeuver.targetLaneId_))
+			;
+		//c.score = timeHorizon + (std::sqrt (SPEED_LIMIT_2) - std::sqrt (maxv2));
+	else
+		c.score = std::numeric_limits<double>::max ();
+
+	//x = c0 + tc1 + t2c2 + t3c3 + t4c4 + t5c5;
+	//v = c1 + 2tc2 + 3t2c3 + 4t3c4 + 5t4c5;
+	//a = 2c2 + 6tc3 + 12t2c4 + 20t3c5; <= 0, v is at a local min/max
+	//j = 6c3 + 24tc4 + 60t2c5; <= 0, a is at a local min/max
+
+	return std::move (c);
 }
