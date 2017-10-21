@@ -243,7 +243,7 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 
 	//std::cout << "Test Points\n";
 
-	for (unsigned i = 0; i < 10; ++i)
+	for (unsigned i = 0; i < 6; ++i)
 	{
 		std::vector<double> const xy = getXY(s, d, worldModel_.map());
 
@@ -257,7 +257,9 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 		          << "\t" << xy[1] << "->" << splineY.back () << "\n";*/
 
 		// Spacing of 20m is set here, speed is handled later
+		/// \todo Tweak spacing for candidate generation?
 		s += 20;
+		d = ramp (d, desiredD, 1);
 	}
 
 	//std::cout << std::endl;
