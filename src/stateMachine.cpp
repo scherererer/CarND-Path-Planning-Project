@@ -7,7 +7,8 @@
 namespace
 {
 
-double constexpr BUFFER_DISTANCE = 20;
+double constexpr BUFFER_DISTANCE = 100;
+double constexpr MAINTAIN_DISTANCE = 20;
 
 }
 
@@ -105,8 +106,14 @@ Maneuver StateMachine::run_stayInLane ()
     m.targetSpeed_ = SPEED_LIMIT;
     m.secondsToReachTarget_ = -1;
 
-	if (fabs (t.s() - car_.s) < BUFFER_DISTANCE && t.speed() < m.targetSpeed_)
-		m.targetSpeed_ = t.speed();
+	if (t.isValid())
+	{
+		double const distanceToTarget = fabs (t.s() - car_.s);
+
+		if (distanceToTarget < BUFFER_DISTANCE && t.speed() < m.targetSpeed_)
+			m.targetSpeed_ = t.speed() -
+			                 clip(0.1 * (MAINTAIN_DISTANCE - distanceToTarget), 0, t.speed ());
+	}
 
 	return m;
 }

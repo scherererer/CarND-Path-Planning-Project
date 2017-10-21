@@ -35,7 +35,8 @@ WorldModel::Target WorldModel::nextInLane (int lane, double s) const
 		if (t.lane () != lane)
 			continue;
 
-		if (closest.isValid() && t.s() >= s && t.s() < closest.s())
+		/// \todo Handle wrapping of s
+		if (t.s() >= s && (! closest.isValid() || t.s() < closest.s()))
 			closest = t;
 	}
 

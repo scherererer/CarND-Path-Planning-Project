@@ -4,13 +4,18 @@
 #include "constants.h"
 #include "map.h"
 
+#include "tk/spline.h"
+
 #include <cmath>
 #include <vector>
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
-inline double deg2rad(double x) { return x * pi() / 180; }
-inline double rad2deg(double x) { return x * 180 / pi(); }
+inline double deg2rad(double const x) { return x * pi() / 180; }
+inline double rad2deg(double const x) { return x * 180 / pi(); }
+
+inline double mph2m_s(double const x) { return x * 0.44704; }
+inline double m_s2mph(double const x) { return x / 0.44704; }
 
 inline double distance(double x1, double y1, double x2, double y2)
 {
@@ -106,6 +111,7 @@ inline std::vector<double> getFrenet(double x, double y, double theta, Map const
 
 }
 
+#if 1
 // Transform from Frenet s,d coordinates to Cartesian x,y
 inline std::vector<double> getXY(double s, double d, Map const &map)
 {
@@ -133,6 +139,54 @@ inline std::vector<double> getXY(double s, double d, Map const &map)
 
 	return {x,y,heading};
 }
+#else
+// Transform from Frenet s,d coordinates to Cartesian x,y
+inline std::vector<double> getXY(double s, double d, Map const &map)
+{
+	/*// Dialate map based on d
+	Map md;
+
+	md.waypoints_s = map.waypoints_s;
+	md.waypoints_dx = map.waypoints_dx;
+	md.waypoints_dy = map.waypoints_dy;
+
+	// Precompute for several d?
+	for (int i1 = 0; i1 < map.waypoints_x.size (); ++i1)
+	{
+		// Index before
+		int const i0 = i1 > 0 ? i1 - 1 : map.waypoints_x.size () - 1;
+		// Index after
+		int const i2 = (i1 + 1) % map.waypoints_x.size ();
+
+		double const angle = atan2 (map.waypoints_y[i2] - map.waypoints_y[i0],
+		                            map.waypoints_x[i2] - map.waypoints_x[i0]);
+		double const perp_angle = angle - M_PI / 2.0;
+
+		md.waypoints_x.push_back(map.waypoints_x[i1] + d*cos(perp_angle));
+		md.waypoints_y.push_back(map.waypoints_y[i1] + d*sin(perp_angle));
+	}*/
+
+	// Work on dialated map
+	int prev_wp = -1;
+
+	while(s > map.waypoints_s[prev_wp+1] && (prev_wp < (int)(map.waypoints_s.size()-1) ))
+	{
+		prev_wp++;
+	}
+
+	int wp2 = (prev_wp+1)%map.waypoints_x.size();
+
+	double heading = atan2((map.waypoints_y[wp2]-map.waypoints_y[prev_wp]),
+	                       (map.waypoints_x[wp2]-map.waypoints_x[prev_wp]));
+	// the x,y,s along the segment
+	double seg_s = (s-map.waypoints_s[prev_wp]);
+
+	double x = map.waypoints_x[prev_wp]+seg_s*cos(heading);
+	double y = map.waypoints_y[prev_wp]+seg_s*sin(heading);
+
+	return {x,y,heading};
+}
+#endif
 
 inline int getLane (double d)
 {
@@ -141,5 +195,20 @@ inline int getLane (double d)
 
 inline double laneToD (int lane)
 {
-	return lane * LANE_WIDTH;
+	// Get the center of the lane
+	return (lane * LANE_WIDTH) + (LANE_WIDTH/2.0);
+}
+
+inline double clip (double x, double min, double max)
+{
+	return std::min (max, std::max (x, min));
+}
+
+/// \brief Ramp x0 towards x1 at a rate no greater than step
+inline double ramp (double const x0, double const x1, double const step)
+{
+	double const dx = x1 - x0;
+	if (fabs (dx) > step)
+		return x0 + std::copysign(step, dx);
+	return x0 + dx;
 }

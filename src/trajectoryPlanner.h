@@ -38,14 +38,23 @@ private:
 		CarState const &carState, Maneuver const &desiredManeuver,
 		double const distance, double const time,
 		double const pos_x, double const pos_y, double const angle,
-		double const end_speed, double const end_accel);
+		double const end_speed, double const end_accel) const;
+
+	struct Score
+	{
+		double score;
+		bool isValid;
+	};
+
+	Score scoreCandidate (Candidate const &c, double desiredD, Maneuver const &desiredManeuver) const;
 
 	/// \brief World model
 	WorldModel const &worldModel_;
 
 	std::random_device randDevice_;
-	std::default_random_engine randEngine_;
-	std::normal_distribution<double> sRand_;
-	std::normal_distribution<double> dRand_;
-	std::normal_distribution<double> timeRand_;
+	std::default_random_engine mutable randEngine_;
+	std::normal_distribution<double> mutable sRand_;
+	std::normal_distribution<double> mutable dRand_;
+	std::normal_distribution<double> mutable timeRand_;
+	std::normal_distribution<double> mutable vRand_;
 };

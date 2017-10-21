@@ -2,6 +2,7 @@
 #include "map.h"
 #include "stateMachine.h"
 #include "trajectoryPlanner.h"
+#include "utilities.h"
 #include "worldModel.h"
 
 #include <uWS/uWS.h>
@@ -46,6 +47,9 @@ int main()
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
   Map map;
 
+  //map.waypoints_x.push_back ({});
+  //map.waypoints_y.push_back ({});
+
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
@@ -68,6 +72,8 @@ int main()
     iss >> d_y;
     map.waypoints_x.push_back(x);
     map.waypoints_y.push_back(y);
+    //map.waypoints_x[0].push_back(x);
+    //map.waypoints_y[0].push_back(y);
     map.waypoints_s.push_back(s);
     map.waypoints_dx.push_back(d_x);
     map.waypoints_dy.push_back(d_y);
@@ -104,8 +110,8 @@ int main()
          car.y = j[1]["y"];
          car.s = j[1]["s"];
          car.d = j[1]["d"];
-         car.yaw = j[1]["yaw"];
-         car.speed = j[1]["speed"];
+         car.yaw = deg2rad(j[1]["yaw"]);
+         car.speed = mph2m_s(j[1]["speed"]);
 
          // Previous path data given to the Planner
          auto previous_path_x = j[1]["previous_path_x"];
