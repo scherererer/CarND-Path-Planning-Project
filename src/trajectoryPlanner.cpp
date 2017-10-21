@@ -241,10 +241,19 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	std::vector<double> splineX;
 	std::vector<double> splineY;
 
+	// First position, needs to be added without introducing error of xy->frenet->xy
+	splineX.push_back(0);
+	splineY.push_back(0);
+
 	//std::cout << "Test Points\n";
 
-	for (unsigned i = 0; i < 6; ++i)
+	for (unsigned i = 1; i < 6; ++i)
 	{
+		// Spacing of 20m is set here, speed is handled later
+		/// \todo Tweak spacing for candidate generation?
+		s += 20;
+		d = ramp (d, desiredD, 1);
+
 		std::vector<double> const xy = getXY(s, d, worldModel_.map());
 
 		double const shift_x = xy[0] - pos_x;
@@ -255,11 +264,6 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 
 		/*std::cout << "\t" << xy[0] << "->" << splineX.back ()
 		          << "\t" << xy[1] << "->" << splineY.back () << "\n";*/
-
-		// Spacing of 20m is set here, speed is handled later
-		/// \todo Tweak spacing for candidate generation?
-		s += 20;
-		d = ramp (d, desiredD, 1);
 	}
 
 	//std::cout << std::endl;
