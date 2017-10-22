@@ -28,17 +28,17 @@ public:
 private:
 	struct Candidate
 	{
-		std::vector<double> xc;
-		std::vector<double> yc;
+		Trajectory trajectory;
 		double score;
 		bool isValid;
 	};
 
-	Candidate generateTrajectory (
-		CarState const &carState, Maneuver const &desiredManeuver,
-		double const distance, double const time,
-		double const pos_x, double const pos_y, double const angle,
-		double const end_speed, double const end_accel) const;
+	Candidate generateTrajectory (Trajectory const &seedTrajectory,
+	                              double pos_x, double pos_y, double angle,
+	                              double current_s, double current_d,
+	                              double current_speed,
+	                              double desired_s, double desired_d,
+	                              double desired_speed) const;
 
 	struct Score
 	{

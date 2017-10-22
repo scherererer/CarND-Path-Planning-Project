@@ -210,20 +210,13 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 
 
 	std::vector<Candidate> candidates;
-	unsigned best = 0;
 	double bestScore = std::numeric_limits<double>::max ();
 
-	/*std::cout << pos_x << "\t"
-	          << pos_y << "\t"
-	          << angle << std::endl;
-	std::cout << end_speed * cos(angle) << "\t"
-	          << end_speed * sin(angle) << "\t"
-	          << end_accel * cos(angle) << "\t"
-	          << end_accel * sin(angle) << std::endl;*/
-
+	/*
+	unsigned best = 0;
 	//do
 	//{
-	/*for (unsigned i = 0; i < NUM_TRAJECTORIES; ++i)
+	for (unsigned i = 0; i < NUM_TRAJECTORIES; ++i)
 	{
 		Candidate const c = generateTrajectory (
 			carState, desiredManeuver, defaultManeuverDistance,
@@ -249,21 +242,38 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	std::cout << "Num Candidates: " << candidates.size ()
 	          << " best score: " << bestScore << std::endl;*/
 
-	//carState, desiredManeuver, defaultManeuverDistance,
-	double const T = (desiredManeuver.secondsToReachTarget_ <= 0)
-					 ? defaultManeuverHorizon
-					 : desiredManeuver.secondsToReachTarget_;
-	//pos_x, pos_y, angle, end_speed, end_accel
-
 	auto const sd = getFrenet(pos_x, pos_y, angle, worldModel_.map());
-	double const currentS = sd[0];
-	double const currentD = sd[1];
+	double const current_s = sd[0];
+	double const current_d = sd[1];
 
-	double const desiredS = carState.s + defaultManeuverDistance;
-	double const desiredD = laneToD(desiredManeuver.targetLaneId_);
+	double const desired_s = carState.s + defaultManeuverDistance;
+	double const desired_d = laneToD(desiredManeuver.targetLaneId_);
 
-	double s = currentS;
-	double d = currentD;
+	Candidate const best =
+		generateTrajectory (t, pos_x, pos_y, angle,
+		                    current_s, current_d,
+		                    end_speed,
+		                    desired_s, desired_d,
+		                    targetSpeed);
+
+	return best.trajectory;
+}
+
+TrajectoryPlanner::Candidate TrajectoryPlanner::generateTrajectory (
+	Trajectory const &seedTrajectory,
+	double pos_x, double pos_y, double angle,
+	double current_s, double current_d,
+	double current_speed,
+	double desired_s, double desired_d,
+	double desired_speed) const
+{
+	TrajectoryPlanner::Candidate c;
+
+	c.trajectory = seedTrajectory;
+	size_t const previous_path_size = seedTrajectory.x.size ();
+
+	double s = current_s;
+	double d = current_d;
 
 	std::vector<double> splineX;
 	std::vector<double> splineY;
@@ -272,14 +282,12 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	splineX.push_back(0);
 	splineY.push_back(0);
 
-	//std::cout << "Test Points\n";
-
 	for (unsigned i = 1; i < 6; ++i)
 	{
 		// Spacing of 20m is set here, speed is handled later
 		/// \todo Tweak spacing for candidate generation?
 		s += 20;
-		d = ramp (d, desiredD, 1);
+		d = ramp (d, desired_d, 1);
 
 		std::vector<double> const xy = getXY(s, d, worldModel_.map());
 
@@ -297,7 +305,7 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	double constexpr ACCEL = 0.1;
 
 	double x = 0;
-	double v = end_speed;
+	double v = current_speed;
 
 	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
 	{
@@ -305,70 +313,25 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 		x = x + v * TIME_STEP;
 		double const y = spline (x);
 
-		v = ramp(v, targetSpeed, ACCEL);
+		v = ramp(v, desired_speed, ACCEL);
 
 		// now convert to world space
 		double const wx = (x * cos(angle) - y * sin(angle)) + pos_x;
 		double const wy = (x * sin(angle) + y * cos(angle)) + pos_y;
 
-		assert (t.x.empty () || (fabs(wx - t.x.back()) < SPEED_LIMIT));
+		assert (c.trajectory.x.empty () || (fabs(wx - c.trajectory.x.back()) < SPEED_LIMIT));
 
-		t.x.push_back(wx);
-		t.y.push_back(wy);
+		c.trajectory.x.push_back(wx);
+		c.trajectory.y.push_back(wy);
 	}
 
-	return t;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-TrajectoryPlanner::Candidate TrajectoryPlanner::generateTrajectory (
-	CarState const &carState, Maneuver const &desiredManeuver,
-	double const distance, double const time,
-	double const pos_x, double const pos_y, double const angle,
-	double const end_speed, double const end_accel) const
-{
-	double const distanceHorizon = std::max (10.0, distance + sRand_(randEngine_));
-	double const desiredD = laneToD(desiredManeuver.targetLaneId_) + dRand_(randEngine_);
-	double const desiredS = carState.s + distanceHorizon;
-
-	// Make the JMT in x-y space rather than s-d space to ensure we minimize Jerk in real world
-	// space and not in an artificial space.
-	std::vector<double> p1 = getXY(desiredS, desiredD, worldModel_.map());
-
-	Candidate c;
-
-	double const timeHorizon = std::max(0.1, time + timeRand_(randEngine_));
-
-	// Try varying speed, accel, and d value
-	c.xc = JMT ({pos_x, end_speed * cos(angle), end_accel * cos(angle)},
-	            {p1[0], desiredManeuver.targetSpeed_ * cos(p1[2]), 0},
-	            timeHorizon);
-	c.yc = JMT ({pos_y, end_speed * sin(angle), end_accel * sin(angle)},
-	            {p1[1], desiredManeuver.targetSpeed_ * sin(p1[2]), 0},
-	            timeHorizon);
-
-	Score const s = scoreCandidate (c, desiredD, desiredManeuver);
-
-	c.score = s.score;
-	c.isValid = s.isValid;
-
-	return std::move (c);
+	return c;
 }
 
 TrajectoryPlanner::Score TrajectoryPlanner::scoreCandidate (
 	Candidate const &c, double const desiredD, Maneuver const &desiredManeuver) const
 {
+	/*
 	//x = c0 + tc1 + t2c2 + t3c3 + t4c4 + t5c5;
 	//v = c1 + 2tc2 + 3t2c3 + 4t3c4 + 5t4c5;
 	//a = 2c2 + 6tc3 + 12t2c4 + 20t3c5; <= 0, v is at a local min/max
@@ -391,7 +354,7 @@ TrajectoryPlanner::Score TrajectoryPlanner::scoreCandidate (
 	double minj2 = std::numeric_limits<double>::max ();
 	double maxj2 = 0;
 
-	for (int i = 1; i < STEP_HORIZON /*- previous_path_size*/; ++i)
+	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
 	{
 		double const vx = evalPoly (vxc, i * TIME_STEP);
 		double const vy = evalPoly (vxc, i * TIME_STEP);
@@ -437,4 +400,6 @@ TrajectoryPlanner::Score TrajectoryPlanner::scoreCandidate (
 		s.score = std::numeric_limits<double>::max ();
 
 	return s;
+	*/
+	return {0.0, false};
 }
