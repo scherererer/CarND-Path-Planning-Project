@@ -40,6 +40,9 @@ public:
 		bool isValid () const
 			{ return id_ >= 0; }
 
+		explicit operator bool () const
+			{ return isValid (); }
+
 		int lane () const;
 
 		int id () const { return id_; }
@@ -70,7 +73,16 @@ public:
 	/// \brief Update with the latest sensor fusion data
 	void update (Target const &t);
 
-	Target nextInLane (int lane, double s) const;
+	/// \param lane Lane to look at
+	/// \param s Car's 'S' position
+	/// \parma farthest_s The farthest to look ahead, 0 indicates infinity
+	Target nextInLane (int lane, double s, double farthest_s = 0.0) const;
+	/// \param lane Lane to look at
+	/// \param s Car's 'S' position
+	/// \parma farthest_s The farthest to look behind, 0 indicates infinity
+	Target previousInLane (int lane, double s, double farthest_s = 0.0) const;
+	/// \brief Get the target with the given id
+	Target target (int id) const;
 
 	Map const &map () const
 		{ return map_; }

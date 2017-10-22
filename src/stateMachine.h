@@ -8,6 +8,12 @@
 class StateMachine
 {
 public:
+	~StateMachine ();
+	explicit StateMachine (WorldModel const &worldModel);
+
+	Maneuver update (CarState const &car);
+
+private:
 	enum State
 	{
 		STAY_IN_LANE,
@@ -17,12 +23,6 @@ public:
 		RIGHT_LANE_CHANGE,
 	};
 
-	~StateMachine ();
-	explicit StateMachine (WorldModel const &worldModel);
-
-	Maneuver update (CarState const &car);
-
-private:
 	State update_stayInLane ();
 	State update_beginLeftLaneChange ();
 	State update_leftLaneChange ();
@@ -34,6 +34,16 @@ private:
 	Maneuver run_leftLaneChange ();
 	Maneuver run_beginRightLaneChange ();
 	Maneuver run_rightLaneChange ();
+
+	enum class LaneChoice
+	{
+		LEFT,   ///< Left lane is faster
+		STAY,   ///< Stay in lane
+		RIGHT,  ///< Right lane is faster
+	};
+
+	/// \brief Find the fastest lane within the next 100 meters
+	LaneChoice fastestLane () const;
 
 	/// \brief World model
 	WorldModel const &worldModel_;

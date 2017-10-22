@@ -29,9 +29,31 @@ double constexpr V_MIN = 1.0;
 double constexpr V_MEAN = 0.0;
 double constexpr V_STD_DEV = SPEED_LIMIT / 3.0;
 
+double constexpr BUFFER_DISTANCE = 50;
+double constexpr MAINTAIN_DISTANCE = 20;
+
 int constexpr STEP_HORIZON = 100;
 
 unsigned constexpr NUM_TRAJECTORIES = 1000;
+
+inline double speedForTarget (WorldModel::Target const &t, CarState const &carState,
+                              double targetSpeed)
+{
+	assert (t);
+	double const distanceToTarget = fabs (t.s() - carState.s);
+
+	if (distanceToTarget < BUFFER_DISTANCE && t.speed() < targetSpeed)
+	{
+		double const newSpeed =
+			 t.speed() -
+			 clip(0.1 * (MAINTAIN_DISTANCE - distanceToTarget), 0, t.speed ());
+
+		if (newSpeed < targetSpeed)
+			return newSpeed;
+	}
+
+	return targetSpeed;
+}
 
 
 /// \brief Calculate the Jerk Minimizing Trajectory that connects the initial state
@@ -106,16 +128,34 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	double end_path_s, double end_path_d,
 	CarState const &carState, Maneuver const &desiredManeuver)
 {
+	size_t const previous_path_size = std::min (previous_path_x.size (), size_t (5));
+
+	double const targetSpeed = [&]()
+	{
+		double targetSpeed = desiredManeuver.targetSpeed_;
+
+		// Safety for car in current lane
+		if (WorldModel::Target const t =
+		    worldModel_.nextInLane (getLane (carState.d), carState.s))
+			targetSpeed = speedForTarget (t, carState, targetSpeed);
+
+		// Target car
+		if (WorldModel::Target const t =
+			worldModel_.target (desiredManeuver.targetLeadingVehicleId_))
+			targetSpeed = speedForTarget (t, carState, targetSpeed);
+
+		return targetSpeed;
+	} ();
+
 	std::cout << "-----------------------------------\n"
 	          << "Lane: " << getLane (carState.d) << " (" << carState.d  << ") -> "
 	          << desiredManeuver.targetLaneId_
 	          << " (" << laneToD (desiredManeuver.targetLaneId_) << ")\n"
-	          << "Speed: " << carState.speed << " -> " << desiredManeuver.targetSpeed_ << "\n"
+	          << "Speed: " << carState.speed << " -> "  << targetSpeed
+	          << " [" << desiredManeuver.targetSpeed_ << "]\n"
 	          << "Target Vehicle: " << desiredManeuver.targetLeadingVehicleId_ << "\n"
 	          << "ETA: " << desiredManeuver.secondsToReachTarget_ << "\n"
 	          << std::endl;
-
-	size_t const previous_path_size = std::min (previous_path_x.size (), size_t (5));
 
 	Trajectory t;
 
@@ -209,19 +249,6 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	std::cout << "Num Candidates: " << candidates.size ()
 	          << " best score: " << bestScore << std::endl;*/
 
-#if 0
-	std::vector<double> const &xcoeffs = candidates[best].xc;
-	std::vector<double> const &ycoeffs = candidates[best].yc;
-
-	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
-	{
-		double const x = evalPoly (xcoeffs, i * TIME_STEP);
-		double const y = evalPoly (ycoeffs, i * TIME_STEP);
-
-		t.x.push_back (x);
-		t.y.push_back (y);
-	}
-#else
 	//carState, desiredManeuver, defaultManeuverDistance,
 	double const T = (desiredManeuver.secondsToReachTarget_ <= 0)
 					 ? defaultManeuverHorizon
@@ -261,12 +288,7 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 
 		splineX.push_back(shift_x * cos(0 - angle) - shift_y * sin(0 - angle));
 		splineY.push_back(shift_x * sin(0 - angle) + shift_y * cos(0 - angle));
-
-		/*std::cout << "\t" << xy[0] << "->" << splineX.back ()
-		          << "\t" << xy[1] << "->" << splineY.back () << "\n";*/
 	}
-
-	//std::cout << std::endl;
 
 	tk::spline spline;
 
@@ -283,12 +305,7 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 		x = x + v * TIME_STEP;
 		double const y = spline (x);
 
-		/*std::cout << "\tspeed\t" << v << "\n"
-		          << "\tx\t" << x << "\n"
-		          << "\ty\t" << y << "\n"
-		          << std::endl;*/
-
-		v = ramp(v, desiredManeuver.targetSpeed_, ACCEL);
+		v = ramp(v, targetSpeed, ACCEL);
 
 		// now convert to world space
 		double const wx = (x * cos(angle) - y * sin(angle)) + pos_x;
@@ -299,27 +316,6 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 		t.x.push_back(wx);
 		t.y.push_back(wy);
 	}
-
-	/*std::cout << "Num Points: " << t.x.size() << " " << t.y.size() << std::endl;
-
-	for (unsigned i = 0; i < t.x.size(); ++i)
-	{
-		std::cout << t.x[i] << "\t" << t.y[i] << "\n";
-	}
-
-	std::cout << std::endl;*/
-
-
-	/*Candidate const &bc = candidates[best];
-	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
-	{
-		double const x = bc.xc[i];
-		double const y = bc.yc[i];
-
-		t.x.push_back (x);
-		t.y.push_back (y);
-	}*/
-#endif
 
 	return t;
 }
