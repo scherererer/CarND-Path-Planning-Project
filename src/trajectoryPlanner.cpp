@@ -259,22 +259,6 @@ Trajectory TrajectoryPlanner::update (
 	best.isSafe = isCandidateSafe(best);
 	best.score = scoreCandidate(best, desired_d, targetSpeed);
 
-	/*for (unsigned i = 0; i < 100; ++i)
-	{
-		Candidate candidate =
-			generateTrajectory (t, carState, pos_x, pos_y, angle,
-			                    current_s, current_d,
-			                    end_speed,
-			                    desired_s + sRand_(randEngine_),
-			                    desired_d + dRand_(randEngine_),
-			                    targetSpeed + std::copysign (vRand_(randEngine_), -1.0));
-
-		candidate.score = scoreCandidate(candidate, desired_d, targetSpeed);
-
-		if (! best.isSafe || (candidate.isSafe && candidate.score > best.score))
-			best = candidate;
-	}*/
-
 	if (best.isSafe)
 		return best.trajectory;
 
@@ -438,80 +422,4 @@ double TrajectoryPlanner::scoreCandidate (Candidate const &c, double const desir
 	       GAIN_MIN_JERK * (maxj2) +
 	       GAIN_CENTER * d_centering +
 	       GAIN_V * v_score;
-}
-
-TrajectoryPlanner::Score TrajectoryPlanner::scoreCandidate (
-	Candidate const &c, double const desiredD, Maneuver const &desiredManeuver) const
-{
-	/*
-	//x = c0 + tc1 + t2c2 + t3c3 + t4c4 + t5c5;
-	//v = c1 + 2tc2 + 3t2c3 + 4t3c4 + 5t4c5;
-	//a = 2c2 + 6tc3 + 12t2c4 + 20t3c5; <= 0, v is at a local min/max
-	//j = 6c3 + 24tc4 + 60t2c5; <= 0, a is at a local min/max
-
-	std::vector<double> vxc = {c.xc[1], 2*c.xc[2], 3*c.xc[3], 4*c.xc[4], 5*c.xc[5]};
-	std::vector<double> vyc = {c.yc[1], 2*c.yc[2], 3*c.yc[3], 4*c.yc[4], 5*c.yc[5]};
-
-	std::vector<double> axc = {2*c.xc[2], 6*c.xc[3], 12*c.xc[4], 20*c.xc[5]};
-	std::vector<double> ayc = {2*c.yc[2], 6*c.yc[3], 12*c.yc[4], 20*c.yc[5]};
-
-	std::vector<double> jxc = {6*c.xc[3], 24*c.xc[4], 60*c.xc[5]};
-	std::vector<double> jyc = {6*c.yc[3], 24*c.yc[4], 60*c.yc[5]};
-
-	// Use the square of the values to save some cycles
-	double minv2 = std::numeric_limits<double>::max ();
-	double maxv2 = 0;
-	double mina2 = std::numeric_limits<double>::max ();
-	double maxa2 = 0;
-	double minj2 = std::numeric_limits<double>::max ();
-	double maxj2 = 0;
-
-	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
-	{
-		double const vx = evalPoly (vxc, i * TIME_STEP);
-		double const vy = evalPoly (vxc, i * TIME_STEP);
-		double const v2 = vx * vx + vy * vy;
-
-		minv2 = std::min (minv2, v2);
-		maxv2 = std::max (maxv2, v2);
-
-		double const ax = evalPoly (axc, i * TIME_STEP);
-		double const ay = evalPoly (axc, i * TIME_STEP);
-		double const a2 = ax * ax + ay * ay;
-
-		mina2 = std::min (mina2, a2);
-		maxa2 = std::max (maxa2, a2);
-
-		double const jx = evalPoly (jxc, i * TIME_STEP);
-		double const jy = evalPoly (jxc, i * TIME_STEP);
-		double const j2 = jx * jx + jy * jy;
-
-		minj2 = std::min (minj2, j2);
-		maxj2 = std::max (maxj2, j2);
-	}
-
-	Score s;
-
-	s.isValid = maxv2 < SPEED_LIMIT_2 && maxa2 < ACCEL_LIMIT_2 && maxj2 < JERK_LIMIT_2;
-
-	// Prioritize being close to the speed limit
-	double constexpr GAIN_SPEED = 1.0; // bound to 22
-	// Prioritize minimizing lateral jerk over longitudinal jerk
-	double constexpr GAIN_MIN_JERK = 1.0; // bound to 10
-	// Prioritize maximal distance to obstacles
-	// Prioritize center of lane
-	double constexpr GAIN_CENTER = 2.0; // bound to maybe 4?
-
-	if (c.isValid)
-		s.score =
-			GAIN_SPEED * (std::sqrt(SPEED_LIMIT_2) - std::sqrt(maxv2)) +
-			GAIN_MIN_JERK * (maxj2) +
-			GAIN_CENTER * fabs(desiredD - laneToD(desiredManeuver.targetLaneId_));
-		//s.score = timeHorizon + (std::sqrt (SPEED_LIMIT_2) - std::sqrt (maxv2));
-	else
-		s.score = std::numeric_limits<double>::max ();
-
-	return s;
-	*/
-	return {0.0, false};
 }

@@ -119,7 +119,6 @@ inline std::vector<double> getFrenet(double x, double y, double theta, Map const
 
 }
 
-#if 1
 // Transform from Frenet s,d coordinates to Cartesian x,y
 inline std::vector<double> getXY(double s, double d, Map const &map)
 {
@@ -147,54 +146,6 @@ inline std::vector<double> getXY(double s, double d, Map const &map)
 
 	return {x,y,heading};
 }
-#else
-// Transform from Frenet s,d coordinates to Cartesian x,y
-inline std::vector<double> getXY(double s, double d, Map const &map)
-{
-	/*// Dialate map based on d
-	Map md;
-
-	md.waypoints_s = map.waypoints_s;
-	md.waypoints_dx = map.waypoints_dx;
-	md.waypoints_dy = map.waypoints_dy;
-
-	// Precompute for several d?
-	for (int i1 = 0; i1 < map.waypoints_x.size (); ++i1)
-	{
-		// Index before
-		int const i0 = i1 > 0 ? i1 - 1 : map.waypoints_x.size () - 1;
-		// Index after
-		int const i2 = (i1 + 1) % map.waypoints_x.size ();
-
-		double const angle = atan2 (map.waypoints_y[i2] - map.waypoints_y[i0],
-		                            map.waypoints_x[i2] - map.waypoints_x[i0]);
-		double const perp_angle = angle - M_PI / 2.0;
-
-		md.waypoints_x.push_back(map.waypoints_x[i1] + d*cos(perp_angle));
-		md.waypoints_y.push_back(map.waypoints_y[i1] + d*sin(perp_angle));
-	}*/
-
-	// Work on dialated map
-	int prev_wp = -1;
-
-	while(s > map.waypoints_s[prev_wp+1] && (prev_wp < (int)(map.waypoints_s.size()-1) ))
-	{
-		prev_wp++;
-	}
-
-	int wp2 = (prev_wp+1)%map.waypoints_x.size();
-
-	double heading = atan2((map.waypoints_y[wp2]-map.waypoints_y[prev_wp]),
-	                       (map.waypoints_x[wp2]-map.waypoints_x[prev_wp]));
-	// the x,y,s along the segment
-	double seg_s = (s-map.waypoints_s[prev_wp]);
-
-	double x = map.waypoints_x[prev_wp]+seg_s*cos(heading);
-	double y = map.waypoints_y[prev_wp]+seg_s*sin(heading);
-
-	return {x,y,heading};
-}
-#endif
 
 inline constexpr int getLane (double d)
 {
