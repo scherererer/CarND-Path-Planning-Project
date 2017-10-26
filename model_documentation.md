@@ -29,7 +29,7 @@ Same as begin left lane change, but for right lane changes.
 
 ## World Model
 
-Information on the surrounding world is stored in the world model. The world model calculates the acceleration of the targets fed into it based on successive speed updates. Currently the model just uses simple linear newtonian physics to predict the motion of cars forward.
+Information on the surrounding world is stored in the world model. The world model calculates the acceleration of the targets fed into it based on successive speed updates. The model for the targets currently assumes they will stay in the same lane, continuing at their current speed and acceleration.
 
 ## Trajectory Planner (Path Generation)
 
