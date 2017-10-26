@@ -10,9 +10,14 @@
 namespace
 {
 
-double constexpr MIN_GAP_AHEAD = 20;
-double constexpr MIN_GAP_BEHIND = 30;
+double constexpr MIN_GAP_AHEAD = 30;
+double constexpr MIN_GAP_BEHIND = 20;
 double constexpr LANE_LOOKAHEAD = 50;
+double constexpr LANE_LOOKBEHIND = 10;
+
+/// \brief Minimum time to stay in the stay in lane state before allowing
+/// to change states. This prevents the car from jumping between lanes.
+double constexpr MIN_TIME_IN_LANE = 5;
 
 }
 
@@ -28,6 +33,8 @@ StateMachine::StateMachine (WorldModel const &worldModel)
 	, currentState_ (STAY_IN_LANE)
 	, car_ ()
 	, targetLane_ (0)
+	, stateStart_ (std::chrono::steady_clock::now())
+	, timeInState_ (0.0)
 {
 }
 
@@ -38,10 +45,15 @@ Maneuver StateMachine::update (CarState const &car)
 	if (! isInitialized_)
 	{
 		targetLane_ = getLane (car_.d);
+		stateStart_ = std::chrono::steady_clock::now();
+		timeInState_ = 0.0;
 		isInitialized_ = true;
 	}
 
 	State const previousState = currentState_;
+
+	auto const timeNow = std::chrono::steady_clock::now();
+	timeInState_ = std::chrono::duration<double> (timeNow - stateStart_).count ();
 
 	switch (currentState_)
 	{
@@ -65,6 +77,12 @@ Maneuver StateMachine::update (CarState const &car)
 	std::cout << "-----------------------------------\n"
 	          << "State: " << previousState << " -> " << currentState_ << std::endl;
 
+	if (previousState != currentState_)
+	{
+		stateStart_ = timeNow;
+		timeInState_ = 0.0;
+	}
+
 	switch (currentState_)
 	{
 	case STAY_IN_LANE:
@@ -84,12 +102,17 @@ StateMachine::State StateMachine::update_stayInLane ()
 {
 	double const wantStayInLane = 0.5;
 	double const wantChangeLane =
-		std::tanh (5.0 - 5.0 * (std::min(SPEED_LIMIT, car_.speed) / SPEED_LIMIT));
+		std::tanh (4.0 - 4.0 * (std::min(SPEED_LIMIT, car_.speed) / SPEED_LIMIT));
 
 	std::cout << "Stay: " << wantStayInLane << "\n"
-	          << "Change: " << wantChangeLane << "\n";
+	          << "Change: " << wantChangeLane << "\n"
+	          << "Time: " << timeInState_ << "\n";
 
-	if ((wantChangeLane - wantStayInLane) > 0.1)
+	if (timeInState_ < MIN_TIME_IN_LANE)
+	{
+		std::cout << " TIME-" << (MIN_TIME_IN_LANE-timeInState_) << " ";
+	}
+	else if ((wantChangeLane - wantStayInLane) > 0.1)
 	{
 		switch (fastestLane ())
 		{
@@ -252,12 +275,13 @@ StateMachine::LaneChoice StateMachine::fastestLane () const
 	if (t.isValid())
 		speed = t.speed();
 
-	if (targetLane_ > 0)
+	if (targetLane_ > 0 &&
+	    ! worldModel_.previousInLane (targetLane_ - 1, car_.s, LANE_LOOKBEHIND))
 	{
 		WorldModel::Target const t = worldModel_.nextInLane (targetLane_ - 1, car_.s,
 															 LANE_LOOKAHEAD);
 
-		if (t.isValid() && t.speed() > speed)
+		if (t.isValid() && t.speed() > speed && fabs(car_.s - t.s()) > LANE_LOOKBEHIND)
 		{
 			speed = t.speed();
 			choice = LaneChoice::LEFT;
@@ -269,12 +293,13 @@ StateMachine::LaneChoice StateMachine::fastestLane () const
 		}
 	}
 
-	if (targetLane_ < 2)
+	if (targetLane_ < 2 &&
+	    ! worldModel_.previousInLane (targetLane_ + 1, car_.s, LANE_LOOKBEHIND))
 	{
 		WorldModel::Target const t = worldModel_.nextInLane (targetLane_ + 1, car_.s,
 															 LANE_LOOKAHEAD);
 
-		if (t.isValid() && t.speed() > speed)
+		if (t.isValid() && t.speed() > speed && fabs(car_.s - t.s()) > LANE_LOOKBEHIND)
 		{
 			speed = t.speed();
 			choice = LaneChoice::RIGHT;

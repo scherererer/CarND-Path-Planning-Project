@@ -3,6 +3,7 @@
 
 #include "carState.h"
 #include "maneuver.h"
+#include "trajectory.h"
 #include "worldModel.h"
 
 #include <random>
@@ -11,12 +12,6 @@
 class TrajectoryPlanner
 {
 public:
-	struct Trajectory
-	{
-		std::vector<double> x;
-		std::vector<double> y;
-	};
-
 	~TrajectoryPlanner ();
 	explicit TrajectoryPlanner (WorldModel const &worldModel);
 
@@ -26,19 +21,9 @@ public:
 	                   CarState const &carState, Maneuver const &desiredManeuver);
 
 private:
-	struct Candidate
-	{
-		Trajectory trajectory;
-		double score;
-		bool isValid;
-	};
-
-	Candidate generateTrajectory (Trajectory const &seedTrajectory,
-	                              double pos_x, double pos_y, double angle,
-	                              double current_s, double current_d,
-	                              double current_speed,
-	                              double desired_s, double desired_d,
-	                              double desired_speed) const;
+	bool isCandidateSafe (Candidate const &c) const;
+	bool doesCandidateCollide (Candidate const &c) const;
+	bool doesCandidateStayOnRoad (Candidate const &c) const;
 
 	struct Score
 	{
@@ -46,6 +31,7 @@ private:
 		bool isValid;
 	};
 
+	double scoreCandidate (Candidate const &c, double desired_d, double desired_v) const;
 	Score scoreCandidate (Candidate const &c, double desiredD, Maneuver const &desiredManeuver) const;
 
 	/// \brief World model

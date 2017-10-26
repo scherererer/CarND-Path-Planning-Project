@@ -5,14 +5,14 @@
 
 #include "Eigen-3.3/Eigen/Dense"
 
-#include "tk/spline.h"
-
 #include <iostream>
 #include <limits>
 
 
 namespace
 {
+
+size_t constexpr NUM_PREVIOUS_PATH_POINTS = 10;
 
 double constexpr defaultManeuverDistance = 100;
 double constexpr S_MEAN = 0.0;
@@ -27,14 +27,15 @@ double constexpr D_STD_DEV = LANE_WIDTH / 6.0;
 
 double constexpr V_MIN = 1.0;
 double constexpr V_MEAN = 0.0;
-double constexpr V_STD_DEV = SPEED_LIMIT / 3.0;
+double constexpr V_STD_DEV = 3.0;
 
 double constexpr BUFFER_DISTANCE = 50;
 double constexpr MAINTAIN_DISTANCE = 20;
 
-int constexpr STEP_HORIZON = 100;
-
 unsigned constexpr NUM_TRAJECTORIES = 1000;
+
+double constexpr MIN_D = laneToD(0)-1.5;
+double constexpr MAX_D = laneToD(2)+1.5;
 
 inline double speedForTarget (WorldModel::Target const &t, CarState const &carState,
                               double targetSpeed)
@@ -123,12 +124,13 @@ TrajectoryPlanner::TrajectoryPlanner (WorldModel const &worldModel)
 {
 }
 
-TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
+Trajectory TrajectoryPlanner::update (
 	std::vector<double> const &previous_path_x, std::vector<double> const &previous_path_y,
 	double end_path_s, double end_path_d,
 	CarState const &carState, Maneuver const &desiredManeuver)
 {
-	size_t const previous_path_size = std::min (previous_path_x.size (), size_t (5));
+	size_t const previous_path_size =
+		std::min (previous_path_x.size (), NUM_PREVIOUS_PATH_POINTS);
 
 	double const targetSpeed = [&]()
 	{
@@ -206,9 +208,6 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 		end_accel = (end_speed - end_speed2) / TIME_STEP;
 	}
 
-	double const lastTimeHorizon = (STEP_HORIZON - previous_path_x.size ()) * TIME_STEP;
-
-
 	std::vector<Candidate> candidates;
 	double bestScore = std::numeric_limits<double>::max ();
 
@@ -249,83 +248,196 @@ TrajectoryPlanner::Trajectory TrajectoryPlanner::update (
 	double const desired_s = carState.s + defaultManeuverDistance;
 	double const desired_d = laneToD(desiredManeuver.targetLaneId_);
 
-	Candidate const best =
-		generateTrajectory (t, pos_x, pos_y, angle,
-		                    current_s, current_d,
-		                    end_speed,
-		                    desired_s, desired_d,
-		                    targetSpeed);
+	Candidate best =
+		Candidate::generate (t, worldModel_.map(),
+		                     {carState.x, carState.y}, {pos_x, pos_y}, angle,
+		                     current_s, current_d,
+		                     end_speed,
+		                     desired_s, desired_d,
+		                     Candidate::TARGET_SPEED, targetSpeed);
+
+	best.isSafe = isCandidateSafe(best);
+	best.score = scoreCandidate(best, desired_d, targetSpeed);
+
+	/*for (unsigned i = 0; i < 100; ++i)
+	{
+		Candidate candidate =
+			generateTrajectory (t, carState, pos_x, pos_y, angle,
+			                    current_s, current_d,
+			                    end_speed,
+			                    desired_s + sRand_(randEngine_),
+			                    desired_d + dRand_(randEngine_),
+			                    targetSpeed + std::copysign (vRand_(randEngine_), -1.0));
+
+		candidate.score = scoreCandidate(candidate, desired_d, targetSpeed);
+
+		if (! best.isSafe || (candidate.isSafe && candidate.score > best.score))
+			best = candidate;
+	}*/
+
+	if (best.isSafe)
+		return best.trajectory;
+
+	// Stay in lane for emergency situations
+	double const emergency_desired_d = clip(laneToD(getLane(current_d)),
+	                                        laneToD(0), laneToD(2));
+
+	// Try an emergency stop trajectory
+	best = Candidate::generate (t, worldModel_.map(),
+	                            {carState.x, carState.y}, {pos_x, pos_y}, angle,
+	                            current_s, current_d,
+	                            end_speed,
+	                            desired_s, emergency_desired_d,
+	                            Candidate::TARGET_SPEED, 0.0);
+
+	best.isSafe = isCandidateSafe(best);
+
+	std::cerr << "**************\n"
+	          << "EMERGENCY STOP\n"
+	          << "EMERGENCY STOP\n"
+	          << "EMERGENCY STOP\n"
+	          << "**************\n";
+
+	if (! best.isSafe)
+		std::cerr << " COLLISION IMMINENT " << std::endl;
 
 	return best.trajectory;
 }
 
-TrajectoryPlanner::Candidate TrajectoryPlanner::generateTrajectory (
-	Trajectory const &seedTrajectory,
-	double pos_x, double pos_y, double angle,
-	double current_s, double current_d,
-	double current_speed,
-	double desired_s, double desired_d,
-	double desired_speed) const
+bool TrajectoryPlanner::isCandidateSafe (Candidate const &c) const
 {
-	TrajectoryPlanner::Candidate c;
+	return (! doesCandidateCollide(c)) && doesCandidateStayOnRoad(c);
+}
 
-	c.trajectory = seedTrajectory;
-	size_t const previous_path_size = seedTrajectory.x.size ();
+bool TrajectoryPlanner::doesCandidateCollide (Candidate const &c) const
+{
+	double time = 0.0;
+	// We don't look forward more than 3 seconds because our approximations aren't that good
+	double constexpr MAX_LOOKAHEAD_TIME = 3.0;
 
-	double s = current_s;
-	double d = current_d;
-
-	std::vector<double> splineX;
-	std::vector<double> splineY;
-
-	// First position, needs to be added without introducing error of xy->frenet->xy
-	splineX.push_back(0);
-	splineY.push_back(0);
-
-	for (unsigned i = 1; i < 6; ++i)
+	for (int i = 0; i < c.trajectory.x.size(); ++i)
 	{
-		// Spacing of 20m is set here, speed is handled later
-		/// \todo Tweak spacing for candidate generation?
-		s += 20;
-		d = ramp (d, desired_d, 1);
+		if (time > MAX_LOOKAHEAD_TIME)
+			break;
 
-		std::vector<double> const xy = getXY(s, d, worldModel_.map());
+		double const x = c.trajectory.x[i];
+		double const y = c.trajectory.y[i];
 
-		double const shift_x = xy[0] - pos_x;
-		double const shift_y = xy[1] - pos_y;
+		if (worldModel_.isCollision(x, y, time))
+			return true;
 
-		splineX.push_back(shift_x * cos(0 - angle) - shift_y * sin(0 - angle));
-		splineY.push_back(shift_x * sin(0 - angle) + shift_y * cos(0 - angle));
+		time += TIME_STEP;
 	}
 
-	tk::spline spline;
+	return false;
+}
 
-	spline.set_points (splineX, splineY);
-
-	double constexpr ACCEL = 0.1;
-
-	double x = 0;
-	double v = current_speed;
-
-	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
+bool TrajectoryPlanner::doesCandidateStayOnRoad (Candidate const &c) const
+{
+	for (int i = 1; i < c.trajectory.x.size(); ++i)
 	{
-		// x, y in vehicle space
-		x = x + v * TIME_STEP;
-		double const y = spline (x);
+		double const x0 = c.trajectory.x[i-1];
+		double const y0 = c.trajectory.y[i-1];
 
-		v = ramp(v, desired_speed, ACCEL);
+		double const x1 = c.trajectory.x[i];
+		double const y1 = c.trajectory.y[i];
 
-		// now convert to world space
-		double const wx = (x * cos(angle) - y * sin(angle)) + pos_x;
-		double const wy = (x * sin(angle) + y * cos(angle)) + pos_y;
+		double const angle = std::atan2(y1-y0, x1-x0);
 
-		assert (c.trajectory.x.empty () || (fabs(wx - c.trajectory.x.back()) < SPEED_LIMIT));
+		auto const sd = getFrenet(x1, y1, angle, worldModel_.map());
+		double const d = sd[1];
 
-		c.trajectory.x.push_back(wx);
-		c.trajectory.y.push_back(wy);
+		if (d < MIN_D || d > MAX_D)
+			return false;
 	}
 
-	return c;
+	return true;
+}
+
+double TrajectoryPlanner::scoreCandidate (Candidate const &c, double const desired_d,
+                                          double const desired_v) const
+{
+	double minv2 = std::numeric_limits<double>::max ();
+	double maxv2 = 0;
+	double mina2 = std::numeric_limits<double>::max ();
+	double maxa2 = 0;
+	double minj2 = std::numeric_limits<double>::max ();
+	double maxj2 = 0;
+
+	double d_centering = 0.0;
+	double v_score = 0.0;
+
+	double lastvx = 0;
+	double lastvy = 0;
+	double lastax = 0;
+	double lastay = 0;
+
+	for (unsigned i = 1; i < c.trajectory.x.size (); ++i)
+	{
+		double const x0 = c.trajectory.x[i-1];
+		double const y0 = c.trajectory.y[i-1];
+
+		double const x1 = c.trajectory.x[i];
+		double const y1 = c.trajectory.y[i];
+
+		double const angle = std::atan2(y1-y0, x1-x0);
+		auto const sd = getFrenet(x1, y1, angle, worldModel_.map());
+
+		d_centering += (desired_d - sd[1]) * (desired_d - sd[1]);
+
+		double const vx = (x1 - x0) / TIME_STEP;
+		double const vy = (y1 - y0) / TIME_STEP;
+		double const v2 = vx * vx + vy * vy;
+		double const v = std::sqrt(v2);
+
+		v_score += (desired_v - v) * (desired_v - v);
+
+		minv2 = std::min (minv2, v2);
+		maxv2 = std::max (maxv2, v2);
+
+		if (i == 1)
+		{
+			lastvx = vx;
+			lastvy = vy;
+			continue;
+		}
+
+		double const ax = (vx - lastvx) / TIME_STEP;
+		double const ay = (vy - lastvy) / TIME_STEP;
+		double const a2 = ax * ax + ay * ay;
+
+		mina2 = std::min (mina2, a2);
+		maxa2 = std::max (maxa2, a2);
+
+		if (i == 2)
+		{
+			lastax = ax;
+			lastay = ay;
+			continue;
+		}
+
+		double const jx = (ax - lastax) / TIME_STEP;
+		double const jy = (ay - lastay) / TIME_STEP;
+		double const j2 = jx * jx + jy * jy;
+
+		minj2 = std::min (minj2, j2);
+		maxj2 = std::max (maxj2, j2);
+	}
+
+	// Prioritize being close to the speed limit
+	double constexpr GAIN_SPEED = 1.0; // bound to 22
+	// Prioritize minimizing lateral jerk over longitudinal jerk
+	double constexpr GAIN_MIN_JERK = 1.0; // bound to 10
+	// Prioritize maximal distance to obstacles
+	// Prioritize center of lane
+	double constexpr GAIN_CENTER = 1.0; // bound to maybe 4?
+
+	double constexpr GAIN_V = 1.0;
+
+	return GAIN_SPEED * (std::sqrt(SPEED_LIMIT_2) - std::sqrt(maxv2)) +
+	       GAIN_MIN_JERK * (maxj2) +
+	       GAIN_CENTER * d_centering +
+	       GAIN_V * v_score;
 }
 
 TrajectoryPlanner::Score TrajectoryPlanner::scoreCandidate (

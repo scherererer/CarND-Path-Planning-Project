@@ -86,6 +86,7 @@ int main()
   h.onMessage([&map, &worldModel, &stateMachine, &trajectoryPlanner]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode)
   {
+    auto const time = std::chrono::steady_clock::now();
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -125,7 +126,7 @@ int main()
 
 		 for (auto const &t : sensor_fusion)
 		 {
-			 WorldModel::Target nt (t[0], t[1], t[2], t[3], t[4], t[5], t[6]);
+			 WorldModel::Target nt (t[0], t[1], t[2], t[3], t[4], t[5], t[6], time);
 
 			 worldModel.update (nt);
 		 }
@@ -134,7 +135,7 @@ int main()
 
          json msgJson;
 
-		 TrajectoryPlanner::Trajectory const trajectory =
+		 Trajectory const trajectory =
 			 trajectoryPlanner.update (previous_path_x, previous_path_y,
 			                           end_path_s, end_path_d, car, desiredManeuver);
 

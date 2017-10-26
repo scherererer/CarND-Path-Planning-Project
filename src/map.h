@@ -7,8 +7,6 @@ struct Map
 {
 	std::vector<double> waypoints_x;
 	std::vector<double> waypoints_y;
-	//std::vector<std::vector<double>> waypoints_x;
-	//std::vector<std::vector<double>> waypoints_y;
 
 	double d_resolution;
 

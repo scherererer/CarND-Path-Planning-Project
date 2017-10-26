@@ -5,6 +5,8 @@
 #include "maneuver.h"
 #include "worldModel.h"
 
+#include <chrono>
+
 class StateMachine
 {
 public:
@@ -58,5 +60,8 @@ private:
 
 	/// \brief Current lane target
 	int targetLane_;
+
+	std::chrono::time_point<std::chrono::steady_clock> stateStart_;
+	double timeInState_;
 };
 

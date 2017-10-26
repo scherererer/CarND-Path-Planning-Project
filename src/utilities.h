@@ -22,6 +22,14 @@ inline double distance(double x1, double y1, double x2, double y2)
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
 
+inline double angleDiff (double a, double b)
+{
+	double diff = fmod(b - a + M_PI, M_PI * 2.0);
+	if (diff < 0)
+		diff += M_PI * 2.0;
+	return diff - M_PI;
+}
+
 inline int closestWaypoint(double x, double y, Map const &map)
 {
 	double closestLen = 100000; //large number
@@ -188,12 +196,12 @@ inline std::vector<double> getXY(double s, double d, Map const &map)
 }
 #endif
 
-inline int getLane (double d)
+inline constexpr int getLane (double d)
 {
 	return static_cast<int> (d / LANE_WIDTH);
 }
 
-inline double laneToD (int lane)
+inline constexpr double laneToD (int lane)
 {
 	// Get the center of the lane
 	return (lane * LANE_WIDTH) + (LANE_WIDTH/2.0);
