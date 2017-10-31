@@ -102,7 +102,7 @@ StateMachine::State StateMachine::update_stayInLane ()
 {
 	double const wantStayInLane = 0.5;
 	double const wantChangeLane =
-		std::tanh (4.0 - 4.0 * (std::min(TARGET_SPEED, car_.speed) / TARGET_SPEED));
+		std::tanh (4.0 - 4.0 * (std::min(TARGET_SPEED, laneSpeed(targetLane_)) / TARGET_SPEED));
 
 	std::cout << "Stay: " << wantStayInLane << "\n"
 	          << "Change: " << wantChangeLane << "\n"
@@ -262,6 +262,16 @@ Maneuver StateMachine::run_rightLaneChange ()
     m.secondsToReachTarget_ = -1;
 
 	return m;
+}
+
+double StateMachine::laneSpeed (unsigned lane) const
+{
+	WorldModel::Target const t = worldModel_.nextInLane (lane, car_.s,
+														 LANE_LOOKAHEAD);
+	if (t.isValid())
+		return t.speed();
+
+	return TARGET_SPEED;
 }
 
 StateMachine::LaneChoice StateMachine::fastestLane () const

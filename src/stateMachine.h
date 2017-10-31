@@ -44,6 +44,9 @@ private:
 		RIGHT,  ///< Right lane is faster
 	};
 
+	/// \brief Get the speed of the given lane
+	double laneSpeed (unsigned lane) const;
+
 	/// \brief Find the fastest lane within the next 100 meters
 	LaneChoice fastestLane () const;
 
