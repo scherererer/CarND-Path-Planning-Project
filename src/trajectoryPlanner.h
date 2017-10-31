@@ -21,9 +21,10 @@ public:
 	                   CarState const &carState, Maneuver const &desiredManeuver);
 
 private:
-	bool isCandidateSafe (Candidate const &c) const;
+	bool isCandidateSafe (Candidate const &c, bool verbose = false) const;
 	bool doesCandidateCollide (Candidate const &c) const;
 	bool doesCandidateStayOnRoad (Candidate const &c) const;
+	bool doesCandidateObeyLimits (Candidate const &c, bool verbose) const;
 
 	double scoreCandidate (Candidate const &c, double desired_d, double desired_v) const;
 

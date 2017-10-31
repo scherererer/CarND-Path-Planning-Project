@@ -159,12 +159,13 @@ Trajectory TrajectoryPlanner::update (
 	          << "ETA: " << desiredManeuver.secondsToReachTarget_ << "\n"
 	          << std::endl;
 
-	Trajectory t;
+	// Takes bits of the previous path
+	Trajectory seedTrajectory;
 
 	for (unsigned i = 0; i < previous_path_size; ++i)
 	{
-		t.x.push_back (previous_path_x[i]);
-		t.y.push_back (previous_path_y[i]);
+		seedTrajectory.x.push_back (previous_path_x[i]);
+		seedTrajectory.y.push_back (previous_path_y[i]);
 	}
 
 	double pos_x = 0;
@@ -248,33 +249,51 @@ Trajectory TrajectoryPlanner::update (
 	double const desired_s = carState.s + defaultManeuverDistance;
 	double const desired_d = laneToD(desiredManeuver.targetLaneId_);
 
+	// First generate our best-case optimal candidate
 	Candidate best =
-		Candidate::generate (t, worldModel_.map(),
+		Candidate::generate (seedTrajectory, worldModel_.map(),
 		                     {carState.x, carState.y}, {pos_x, pos_y}, angle,
 		                     current_s, current_d,
 		                     end_speed,
 		                     desired_s, desired_d,
 		                     Candidate::TARGET_SPEED, targetSpeed);
 
-	best.isSafe = isCandidateSafe(best);
+	best.isSafe = isCandidateSafe(best, true);
 	best.score = scoreCandidate(best, desired_d, targetSpeed);
 
-	//if (best.isSafe)
+	// Try up to 100 candidates until we find one that's safe
+	for (unsigned i = 0; i < 100 && ! best.isSafe; ++i)
+	{
+		best =
+			Candidate::generate (seedTrajectory, worldModel_.map(),
+								 {carState.x, carState.y}, {pos_x, pos_y}, angle,
+								 current_s, current_d,
+								 end_speed,
+								 desired_s + sRand_(randEngine_),
+								 desired_d + dRand_(randEngine_),
+								 Candidate::TARGET_SPEED, targetSpeed);
+
+		best.isSafe = isCandidateSafe(best);
+		best.score = scoreCandidate(best, desired_d, targetSpeed);
+	}
+
+	if (best.isSafe)
 		return best.trajectory;
 
+	// As a last ditch if nothing else is safe, then mitigate the situation
 	// Stay in lane for emergency situations
 	double const emergency_desired_d = clip(laneToD(getLane(current_d)),
 	                                        laneToD(0), laneToD(2));
 
 	// Try an emergency stop trajectory
-	best = Candidate::generate (t, worldModel_.map(),
+	best = Candidate::generate (seedTrajectory, worldModel_.map(),
 	                            {carState.x, carState.y}, {pos_x, pos_y}, angle,
 	                            current_s, current_d,
 	                            end_speed,
 	                            desired_s, emergency_desired_d,
 	                            Candidate::TARGET_SPEED, 0.0);
 
-	best.isSafe = isCandidateSafe(best);
+	best.isSafe = isCandidateSafe(best, true);
 
 	std::cerr << "**************\n"
 	          << "EMERGENCY STOP\n"
@@ -288,9 +307,30 @@ Trajectory TrajectoryPlanner::update (
 	return best.trajectory;
 }
 
-bool TrajectoryPlanner::isCandidateSafe (Candidate const &c) const
+bool TrajectoryPlanner::isCandidateSafe (Candidate const &c, bool const verbose) const
 {
-	return (! doesCandidateCollide(c)) && doesCandidateStayOnRoad(c);
+	if (doesCandidateCollide(c))
+	{
+		if (verbose)
+			std::cerr << "SAFETY: Collision Risk\n";
+		return false;
+	}
+
+	if (! doesCandidateStayOnRoad(c))
+	{
+		if (verbose)
+			std::cerr << "SAFETY: Off Road Risk\n";
+		return false;
+	}
+
+	if (! doesCandidateObeyLimits(c, verbose))
+	{
+		if (verbose)
+			std::cerr << "SAFETY: Limits Risk\n";
+		return false;
+	}
+
+	return true;
 }
 
 bool TrajectoryPlanner::doesCandidateCollide (Candidate const &c) const
@@ -338,6 +378,71 @@ bool TrajectoryPlanner::doesCandidateStayOnRoad (Candidate const &c) const
 	return true;
 }
 
+bool TrajectoryPlanner::doesCandidateObeyLimits (Candidate const &c, bool const verbose) const
+{
+	double lastvx = 0;
+	double lastvy = 0;
+	double lastax = 0;
+	double lastay = 0;
+
+	for (unsigned i = 1; i < c.trajectory.x.size (); ++i)
+	{
+		double const x0 = c.trajectory.x[i-1];
+		double const y0 = c.trajectory.y[i-1];
+
+		double const x1 = c.trajectory.x[i];
+		double const y1 = c.trajectory.y[i];
+
+		double const vx = (x1 - x0) / TIME_STEP;
+		double const vy = (y1 - y0) / TIME_STEP;
+		double const v2 = vx * vx + vy * vy;
+
+		if (v2 > SPEED_LIMIT_2)
+		{
+			if (verbose)
+				std::cerr << "\tLimit: Speed " << v2 << " > " << SPEED_LIMIT_2
+				          << " at " << i << "\n";
+			return false;
+		}
+
+		lastvx = vx;
+		lastvy = vy;
+
+		if (i == 1)
+			continue;
+
+		double const ax = (vx - lastvx) / TIME_STEP;
+		double const ay = (vy - lastvy) / TIME_STEP;
+		double const a2 = ax * ax + ay * ay;
+
+		if (a2 > ACCEL_LIMIT_2)
+		{
+			if (verbose)
+				std::cerr << "\tLimit: Accel\n";
+			return false;
+		}
+
+		lastax = ax;
+		lastay = ay;
+
+		if (i == 2)
+			continue;
+
+		double const jx = (ax - lastax) / TIME_STEP;
+		double const jy = (ay - lastay) / TIME_STEP;
+		double const j2 = jx * jx + jy * jy;
+
+		if (j2 > JERK_LIMIT_2)
+		{
+			if (verbose)
+				std::cerr << "\tLimit: Jerk\n";
+			return false;
+		}
+	}
+
+	return true;
+}
+
 double TrajectoryPlanner::scoreCandidate (Candidate const &c, double const desired_d,
                                           double const desired_v) const
 {
@@ -379,12 +484,11 @@ double TrajectoryPlanner::scoreCandidate (Candidate const &c, double const desir
 		minv2 = std::min (minv2, v2);
 		maxv2 = std::max (maxv2, v2);
 
+		lastvx = vx;
+		lastvy = vy;
+
 		if (i == 1)
-		{
-			lastvx = vx;
-			lastvy = vy;
 			continue;
-		}
 
 		double const ax = (vx - lastvx) / TIME_STEP;
 		double const ay = (vy - lastvy) / TIME_STEP;
@@ -393,12 +497,11 @@ double TrajectoryPlanner::scoreCandidate (Candidate const &c, double const desir
 		mina2 = std::min (mina2, a2);
 		maxa2 = std::max (maxa2, a2);
 
+		lastax = ax;
+		lastay = ay;
+
 		if (i == 2)
-		{
-			lastax = ax;
-			lastay = ay;
 			continue;
-		}
 
 		double const jx = (ax - lastax) / TIME_STEP;
 		double const jy = (ay - lastay) / TIME_STEP;

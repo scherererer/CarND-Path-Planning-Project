@@ -102,7 +102,7 @@ StateMachine::State StateMachine::update_stayInLane ()
 {
 	double const wantStayInLane = 0.5;
 	double const wantChangeLane =
-		std::tanh (4.0 - 4.0 * (std::min(SPEED_LIMIT, car_.speed) / SPEED_LIMIT));
+		std::tanh (4.0 - 4.0 * (std::min(TARGET_SPEED, car_.speed) / TARGET_SPEED));
 
 	std::cout << "Stay: " << wantStayInLane << "\n"
 	          << "Change: " << wantChangeLane << "\n"
@@ -206,7 +206,7 @@ Maneuver StateMachine::run_stayInLane ()
 
     m.targetLaneId_ = targetLane_;
     m.targetLeadingVehicleId_ = t.id();
-    m.targetSpeed_ = SPEED_LIMIT;
+    m.targetSpeed_ = TARGET_SPEED;
     m.secondsToReachTarget_ = -1;
 
 	return m;
@@ -219,7 +219,7 @@ Maneuver StateMachine::run_beginLeftLaneChange ()
 
     m.targetLaneId_ = targetLane_;
     m.targetLeadingVehicleId_ = t.id();
-    m.targetSpeed_ = SPEED_LIMIT;
+    m.targetSpeed_ = TARGET_SPEED;
     m.secondsToReachTarget_ = -1;
 
 	return m;
@@ -232,7 +232,7 @@ Maneuver StateMachine::run_leftLaneChange ()
 
     m.targetLaneId_ = targetLane_;
     m.targetLeadingVehicleId_ = t.id();
-    m.targetSpeed_ = SPEED_LIMIT;
+    m.targetSpeed_ = TARGET_SPEED;
     m.secondsToReachTarget_ = -1;
 
 	return m;
@@ -245,7 +245,7 @@ Maneuver StateMachine::run_beginRightLaneChange ()
 
     m.targetLaneId_ = targetLane_;
     m.targetLeadingVehicleId_ = t.id();
-    m.targetSpeed_ = SPEED_LIMIT;
+    m.targetSpeed_ = TARGET_SPEED;
     m.secondsToReachTarget_ = -1;
 
 	return m;
@@ -258,7 +258,7 @@ Maneuver StateMachine::run_rightLaneChange ()
 
     m.targetLaneId_ = targetLane_;
     m.targetLeadingVehicleId_ = t.id();
-    m.targetSpeed_ = SPEED_LIMIT;
+    m.targetSpeed_ = TARGET_SPEED;
     m.secondsToReachTarget_ = -1;
 
 	return m;
@@ -266,7 +266,7 @@ Maneuver StateMachine::run_rightLaneChange ()
 
 StateMachine::LaneChoice StateMachine::fastestLane () const
 {
-	double speed = SPEED_LIMIT;
+	double speed = TARGET_SPEED;
 	LaneChoice choice = LaneChoice::STAY;
 
 	WorldModel::Target const t = worldModel_.nextInLane (targetLane_, car_.s,
@@ -288,7 +288,7 @@ StateMachine::LaneChoice StateMachine::fastestLane () const
 		}
 		else if (! t.isValid()) // Nothing blocking us
 		{
-			speed = SPEED_LIMIT;
+			speed = TARGET_SPEED;
 			choice = LaneChoice::LEFT;
 		}
 	}
@@ -306,7 +306,7 @@ StateMachine::LaneChoice StateMachine::fastestLane () const
 		}
 		else if (! t.isValid()) // Nothing blocking us
 		{
-			speed = SPEED_LIMIT;
+			speed = TARGET_SPEED;
 			choice = LaneChoice::RIGHT;
 		}
 	}

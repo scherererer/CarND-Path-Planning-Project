@@ -39,8 +39,10 @@ Candidate Candidate::generate (
 	// Add the car's XY
 	if (previous_path_size > 0)
 	{
-		double const shift_x = car_pos.x() - seed_end.x();
-		double const shift_y = car_pos.y() - seed_end.y();
+		//double const shift_x = car_pos.x() - seed_end.x();
+		//double const shift_y = car_pos.y() - seed_end.y();
+		double const shift_x = c.trajectory.x.front() - seed_end.x();
+		double const shift_y = c.trajectory.y.front() - seed_end.y();
 
 		// Check the manhattan distance is greater than the threshold, otherwise don't bother
 		// adding this point.
@@ -57,7 +59,7 @@ Candidate Candidate::generate (
 
 	for (unsigned i = 1; i < 6; ++i)
 	{
-		// Spacing of 20m is set here, speed is handled later
+		// Spacing is set here, speed is handled later
 		/// \todo Tweak spacing for candidate generation?
 		s = advanceS (s, 15, map);
 		d = ramp (d, desired_d, 1.0);
@@ -67,11 +69,20 @@ Candidate Candidate::generate (
 		double const shift_x = xy[0] - seed_end.x();
 		double const shift_y = xy[1] - seed_end.y();
 
-		splineX.push_back(shift_x * cos(0 - angle) - shift_y * sin(0 - angle));
-		splineY.push_back(shift_x * sin(0 - angle) + shift_y * cos(0 - angle));
+		double const new_x = shift_x * cos(0 - angle) - shift_y * sin(0 - angle);
+		double const new_y = shift_x * sin(0 - angle) + shift_y * cos(0 - angle);
+
+		if (! splineX.empty() && new_x <= splineX.back())
+			break;
+
+		splineX.push_back(new_x);
+		splineY.push_back(new_y);
 	}
 
 	tk::spline spline;
+
+	if (splineX.size() < 3)
+		return c;
 
 	spline.set_points (splineX, splineY);
 

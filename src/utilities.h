@@ -63,7 +63,7 @@ inline int nextWaypoint(double x, double y, double theta, Map const &map)
 	double angle = abs(theta-heading);
 
 	if(angle > pi()/4)
-		++closest;
+		closest = (closest + 1) % map.waypoints_x.size();
 
 	return closest;
 
