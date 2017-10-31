@@ -7,6 +7,7 @@
 #include "tk/spline.h"
 
 #include <cmath>
+#include <iostream>
 
 namespace
 {
@@ -37,16 +38,19 @@ Candidate Candidate::generate (
 	std::vector<double> splineY;
 
 	// Add the car's XY
-	if (previous_path_size > 0)
+	//if (previous_path_size > 0)
+	if (previous_path_size > 1)
 	{
 		//double const shift_x = car_pos.x() - seed_end.x();
 		//double const shift_y = car_pos.y() - seed_end.y();
 		double const shift_x = c.trajectory.x.front() - seed_end.x();
 		double const shift_y = c.trajectory.y.front() - seed_end.y();
+		//double const shift_x = c.trajectory.x[1] - seed_end.x();
+		//double const shift_y = c.trajectory.y[1] - seed_end.y();
 
 		// Check the manhattan distance is greater than the threshold, otherwise don't bother
 		// adding this point.
-		if (shift_x + shift_y > MIN_MANHATTAN_DISTANCE_FOR_START_WAYPOINT)
+		if (fabs(shift_x) + fabs(shift_y) > MIN_MANHATTAN_DISTANCE_FOR_START_WAYPOINT)
 		{
 			splineX.push_back(shift_x * cos(0 - angle) - shift_y * sin(0 - angle));
 			splineY.push_back(shift_x * sin(0 - angle) + shift_y * cos(0 - angle));
@@ -86,11 +90,12 @@ Candidate Candidate::generate (
 
 	spline.set_points (splineX, splineY);
 
-	//double constexpr ACCEL = 0.1;
 	double constexpr ACCEL = 0.05;
-
 	double x = 0;
 	double v = current_speed;
+
+	double lastx = 0.0;
+	double lasty = 0.0;
 
 	for (int i = 1; i < STEP_HORIZON - previous_path_size; ++i)
 	{
@@ -100,9 +105,16 @@ Candidate Candidate::generate (
 		switch (mode)
 		{
 		case TARGET_SPEED:
+		{
 			x = x + v * TIME_STEP;
-			v = ramp(v, target, ACCEL);
+
+			double const a = cos(atan2(y-lasty, x-lastx));
+			lasty = y;
+			lastx = x;
+
+			v = ramp(v, target, ACCEL*a);
 			break;
+		}
 		case TARGET_ACCEL:
 			x = x + v * TIME_STEP + 0.5 * target * TIME_STEP * TIME_STEP;
 			break;

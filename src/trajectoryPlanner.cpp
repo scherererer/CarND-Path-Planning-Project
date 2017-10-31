@@ -12,7 +12,7 @@
 namespace
 {
 
-size_t constexpr NUM_PREVIOUS_PATH_POINTS = 10;
+size_t constexpr NUM_PREVIOUS_PATH_POINTS = 20;
 
 double constexpr defaultManeuverDistance = 100;
 double constexpr S_MEAN = 0.0;
@@ -237,7 +237,8 @@ Trajectory TrajectoryPlanner::update (
 								 end_speed,
 								 desired_s + sRand_(randEngine_),
 								 desired_d + dRand_(randEngine_),
-								 Candidate::TARGET_SPEED, targetSpeed);
+								 Candidate::TARGET_SPEED,
+								 std::min(TARGET_SPEED, targetSpeed + vRand_(randEngine_)));
 
 		best.isSafe = isCandidateSafe(best);
 	}
@@ -260,14 +261,14 @@ Trajectory TrajectoryPlanner::update (
 
 	best.isSafe = isCandidateSafe(best, true);
 
-	std::cerr << "**************\n"
+	std::cout << "**************\n"
 	          << "EMERGENCY STOP\n"
 	          << "EMERGENCY STOP\n"
 	          << "EMERGENCY STOP\n"
 	          << "**************\n";
 
 	if (! best.isSafe)
-		std::cerr << " COLLISION IMMINENT " << std::endl;
+		std::cout << " COLLISION IMMINENT " << std::endl;
 
 	return best.trajectory;
 }
@@ -277,21 +278,21 @@ bool TrajectoryPlanner::isCandidateSafe (Candidate const &c, bool const verbose)
 	if (doesCandidateCollide(c))
 	{
 		if (verbose)
-			std::cerr << "SAFETY: Collision Risk\n";
+			std::cout << "SAFETY: Collision Risk\n";
 		return false;
 	}
 
 	if (! doesCandidateStayOnRoad(c))
 	{
 		if (verbose)
-			std::cerr << "SAFETY: Off Road Risk\n";
+			std::cout << "SAFETY: Off Road Risk\n";
 		return false;
 	}
 
 	if (! doesCandidateObeyLimits(c, verbose))
 	{
 		if (verbose)
-			std::cerr << "SAFETY: Limits Risk\n";
+			std::cout << "SAFETY: Limits Risk\n";
 		return false;
 	}
 
@@ -365,7 +366,7 @@ bool TrajectoryPlanner::doesCandidateObeyLimits (Candidate const &c, bool const 
 		if (v2 > SPEED_LIMIT_2)
 		{
 			if (verbose)
-				std::cerr << "\tLimit: Speed " << v2 << " > " << SPEED_LIMIT_2
+				std::cout << "\tLimit: Speed " << v2 << " > " << SPEED_LIMIT_2
 				          << " at " << i << "\n";
 			return false;
 		}
@@ -383,7 +384,7 @@ bool TrajectoryPlanner::doesCandidateObeyLimits (Candidate const &c, bool const 
 		if (a2 > ACCEL_LIMIT_2)
 		{
 			if (verbose)
-				std::cerr << "\tLimit: Accel\n";
+				std::cout << "\tLimit: Accel\n";
 			return false;
 		}
 
@@ -400,7 +401,7 @@ bool TrajectoryPlanner::doesCandidateObeyLimits (Candidate const &c, bool const 
 		if (j2 > JERK_LIMIT_2)
 		{
 			if (verbose)
-				std::cerr << "\tLimit: Jerk\n";
+				std::cout << "\tLimit: Jerk\n";
 			return false;
 		}
 	}
