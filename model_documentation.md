@@ -9,7 +9,7 @@ High level behaviors are dictated by a state manager.
 
 #### Stay In Lane
 
-Stay in the current lane. The car is held in this state for a minimum of 5 seconds to reduce unexpected behavior from the perspective of other drivers. It transitions to either begin a left or right lane change if traffic in the current lane is slower than one of the adjacent lanes.
+Stay in the current lane. The car is held in this state for a minimum of 5 seconds to reduce unexpected behavior from the perspective of other drivers. First the algorithm decides how badly it wants to change lanes by determining how different the current speed is from the speed limit. It then transitions to either begin a left or right lane change if traffic in the current lane is slower than one of the adjacent lanes. 
 
 #### Begin Left Lane Change
 

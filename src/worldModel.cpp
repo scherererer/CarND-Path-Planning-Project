@@ -53,7 +53,7 @@ void WorldModel::update (Target const &update)
 								 { target.x_, target.y_ },
 								 { target.x_, target.y_ }, angle,
 								 target.s_, target.d_, v,
-								 fmod(target.s_ + 60, map_.waypoints_s.back()), target.d_,
+								 advanceS(target.s_, 60, map_), target.d_,
 								 Candidate::TARGET_ACCEL, a).trajectory;
 }
 

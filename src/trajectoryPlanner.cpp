@@ -259,7 +259,7 @@ Trajectory TrajectoryPlanner::update (
 	best.isSafe = isCandidateSafe(best);
 	best.score = scoreCandidate(best, desired_d, targetSpeed);
 
-	if (best.isSafe)
+	//if (best.isSafe)
 		return best.trajectory;
 
 	// Stay in lane for emergency situations

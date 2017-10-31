@@ -171,3 +171,15 @@ inline double ramp (double const x0, double const x1, double const step)
 		return x0 + std::copysign(step, dx);
 	return x0 + dx;
 }
+
+/// \brief Advance the s value around the map accounting for wrapping
+/// \param s S value in Frenet coordinates
+/// \param value Amount to advance S by
+/// \param map Map to use
+inline double advanceS (double const s, double const value, Map const &map)
+{
+	/// \todo Calculate this once in the map object
+	double constexpr BEGIN_END_SEPARATION = 31.404797079;
+
+	return std::fmod(s + value, map.waypoints_s.back() + BEGIN_END_SEPARATION);
+}

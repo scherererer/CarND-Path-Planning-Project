@@ -59,8 +59,8 @@ Candidate Candidate::generate (
 	{
 		// Spacing of 20m is set here, speed is handled later
 		/// \todo Tweak spacing for candidate generation?
-		s = fmod(s + 20, map.waypoints_s.back());
-		d = ramp (d, desired_d, 1.2);
+		s = advanceS (s, 15, map);
+		d = ramp (d, desired_d, 1.0);
 
 		std::vector<double> const xy = getXY(s, d, map);
 
@@ -76,7 +76,7 @@ Candidate Candidate::generate (
 	spline.set_points (splineX, splineY);
 
 	//double constexpr ACCEL = 0.1;
-	double constexpr ACCEL = 0.1;
+	double constexpr ACCEL = 0.05;
 
 	double x = 0;
 	double v = current_speed;
