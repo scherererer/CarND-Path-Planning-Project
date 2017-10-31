@@ -26,8 +26,6 @@ private:
 	bool doesCandidateStayOnRoad (Candidate const &c) const;
 	bool doesCandidateObeyLimits (Candidate const &c, bool verbose) const;
 
-	double scoreCandidate (Candidate const &c, double desired_d, double desired_v) const;
-
 	/// \brief World model
 	WorldModel const &worldModel_;
 

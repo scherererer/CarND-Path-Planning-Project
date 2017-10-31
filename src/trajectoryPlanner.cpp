@@ -209,39 +209,6 @@ Trajectory TrajectoryPlanner::update (
 		end_accel = (end_speed - end_speed2) / TIME_STEP;
 	}
 
-	std::vector<Candidate> candidates;
-	double bestScore = std::numeric_limits<double>::max ();
-
-	/*
-	unsigned best = 0;
-	//do
-	//{
-	for (unsigned i = 0; i < NUM_TRAJECTORIES; ++i)
-	{
-		Candidate const c = generateTrajectory (
-			carState, desiredManeuver, defaultManeuverDistance,
-			(desiredManeuver.secondsToReachTarget_ <= 0)
-			? defaultManeuverHorizon
-			: desiredManeuver.secondsToReachTarget_,
-			pos_x, pos_y, angle, end_speed, end_accel);
-
-		if (! c.isValid)
-			continue;
-
-		if (c.score < bestScore)
-		{
-			best = candidates.size ();
-			bestScore = c.score;
-		}
-
-		candidates.push_back (c);
-	}
-	//} while (candidates.size () == 0);
-
-	assert (candidates.size () > 0);
-	std::cout << "Num Candidates: " << candidates.size ()
-	          << " best score: " << bestScore << std::endl;*/
-
 	auto const sd = getFrenet(pos_x, pos_y, angle, worldModel_.map());
 	double const current_s = sd[0];
 	double const current_d = sd[1];
@@ -259,7 +226,6 @@ Trajectory TrajectoryPlanner::update (
 		                     Candidate::TARGET_SPEED, targetSpeed);
 
 	best.isSafe = isCandidateSafe(best, true);
-	best.score = scoreCandidate(best, desired_d, targetSpeed);
 
 	// Try up to 100 candidates until we find one that's safe
 	for (unsigned i = 0; i < 100 && ! best.isSafe; ++i)
@@ -274,7 +240,6 @@ Trajectory TrajectoryPlanner::update (
 								 Candidate::TARGET_SPEED, targetSpeed);
 
 		best.isSafe = isCandidateSafe(best);
-		best.score = scoreCandidate(best, desired_d, targetSpeed);
 	}
 
 	if (best.isSafe)
@@ -441,88 +406,4 @@ bool TrajectoryPlanner::doesCandidateObeyLimits (Candidate const &c, bool const 
 	}
 
 	return true;
-}
-
-double TrajectoryPlanner::scoreCandidate (Candidate const &c, double const desired_d,
-                                          double const desired_v) const
-{
-	double minv2 = std::numeric_limits<double>::max ();
-	double maxv2 = 0;
-	double mina2 = std::numeric_limits<double>::max ();
-	double maxa2 = 0;
-	double minj2 = std::numeric_limits<double>::max ();
-	double maxj2 = 0;
-
-	double d_centering = 0.0;
-	double v_score = 0.0;
-
-	double lastvx = 0;
-	double lastvy = 0;
-	double lastax = 0;
-	double lastay = 0;
-
-	for (unsigned i = 1; i < c.trajectory.x.size (); ++i)
-	{
-		double const x0 = c.trajectory.x[i-1];
-		double const y0 = c.trajectory.y[i-1];
-
-		double const x1 = c.trajectory.x[i];
-		double const y1 = c.trajectory.y[i];
-
-		double const angle = std::atan2(y1-y0, x1-x0);
-		auto const sd = getFrenet(x1, y1, angle, worldModel_.map());
-
-		d_centering += (desired_d - sd[1]) * (desired_d - sd[1]);
-
-		double const vx = (x1 - x0) / TIME_STEP;
-		double const vy = (y1 - y0) / TIME_STEP;
-		double const v2 = vx * vx + vy * vy;
-		double const v = std::sqrt(v2);
-
-		v_score += (desired_v - v) * (desired_v - v);
-
-		minv2 = std::min (minv2, v2);
-		maxv2 = std::max (maxv2, v2);
-
-		lastvx = vx;
-		lastvy = vy;
-
-		if (i == 1)
-			continue;
-
-		double const ax = (vx - lastvx) / TIME_STEP;
-		double const ay = (vy - lastvy) / TIME_STEP;
-		double const a2 = ax * ax + ay * ay;
-
-		mina2 = std::min (mina2, a2);
-		maxa2 = std::max (maxa2, a2);
-
-		lastax = ax;
-		lastay = ay;
-
-		if (i == 2)
-			continue;
-
-		double const jx = (ax - lastax) / TIME_STEP;
-		double const jy = (ay - lastay) / TIME_STEP;
-		double const j2 = jx * jx + jy * jy;
-
-		minj2 = std::min (minj2, j2);
-		maxj2 = std::max (maxj2, j2);
-	}
-
-	// Prioritize being close to the speed limit
-	double constexpr GAIN_SPEED = 1.0; // bound to 22
-	// Prioritize minimizing lateral jerk over longitudinal jerk
-	double constexpr GAIN_MIN_JERK = 1.0; // bound to 10
-	// Prioritize maximal distance to obstacles
-	// Prioritize center of lane
-	double constexpr GAIN_CENTER = 1.0; // bound to maybe 4?
-
-	double constexpr GAIN_V = 1.0;
-
-	return GAIN_SPEED * (std::sqrt(SPEED_LIMIT_2) - std::sqrt(maxv2)) +
-	       GAIN_MIN_JERK * (maxj2) +
-	       GAIN_CENTER * d_centering +
-	       GAIN_V * v_score;
 }

@@ -30,7 +30,6 @@ struct Candidate
 	                           Mode mode, double target);
 
 	Trajectory trajectory;
-	double score;
 	bool isSafe;
 };
 
