@@ -105,15 +105,12 @@ Candidate Candidate::generate (
 			break;
 		case TARGET_ACCEL:
 			x = x + v * TIME_STEP + 0.5 * target * TIME_STEP * TIME_STEP;
-			//v += target * TIME_STEP;
 			break;
 		}
 
 		// now convert to world space
 		double const wx = (x * cos(angle) - y * sin(angle)) + seed_end.x();
 		double const wy = (x * sin(angle) + y * cos(angle)) + seed_end.y();
-
-		//assert (c.trajectory.x.empty () || (fabs(wx - c.trajectory.x.back()) < SPEED_LIMIT));
 
 		c.trajectory.x.push_back(wx);
 		c.trajectory.y.push_back(wy);
